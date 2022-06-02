@@ -65,6 +65,13 @@ const getGithubRepo = async () => {
   return config.GITHUB_REPO;
 };
 
+const getBuildVersion = async () => {
+  const configPath = path.join(__dirname, "..", "cysync", "src", "config.json");
+  const config = JSON.parse(fs.readFileSync(configPath));
+
+  return config.BUILD_VERSION;
+};
+
 const getReleaseName = (version) => {
   return `v${version}`;
 };
@@ -117,9 +124,11 @@ const updateReleaseFile = async ({ releaseName, githubRepo, version }) => {
 const createRelease = async ({ version, githubRepo, tagName, buildType }) => {
   const releaseName = getReleaseName(version);
 
+  const buildVersion = await getBuildVersion();
   const postData = {
     tag_name: releaseName,
     name: releaseName,
+    body: `Build Version: ${buildVersion}`,
   };
 
   if (["prod", "rc"].includes(buildType)) {
