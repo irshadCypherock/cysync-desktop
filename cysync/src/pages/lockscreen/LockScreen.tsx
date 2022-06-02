@@ -1,19 +1,14 @@
-import { CircularProgress } from '@material-ui/core';
-import Button from '@material-ui/core/Button';
-import Grid from '@material-ui/core/Grid';
-import IconButton from '@material-ui/core/IconButton';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import ErrorOutlineIcon from '@material-ui/icons/ErrorOutline';
-import ReportIcon from '@material-ui/icons/Report';
-import Visibility from '@material-ui/icons/Visibility';
-import VisibilityOff from '@material-ui/icons/VisibilityOff';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ReportIcon from '@mui/icons-material/Report';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { CircularProgress } from '@mui/material';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import { styled, useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import React from 'react';
 
 import CustomizedDialog from '../../designSystem/designComponents/dialog/newDialogBox';
@@ -23,52 +18,63 @@ import CySync from '../../designSystem/iconGroups/cySync';
 import CySyncRound from '../../designSystem/iconGroups/cySyncRound';
 import ErrorExclamation from '../../designSystem/iconGroups/errorExclamation';
 import ICONS from '../../designSystem/iconGroups/iconConstants';
-import { loadDatabases, passEnDb } from '../../store/database';
+import { passEnDb } from '../../store/database';
 import { FeedbackState, useFeedback } from '../../store/provider';
 import { generateSinglePasswordHash, verifyPassword } from '../../utils/auth';
 import { triggerClearData } from '../../utils/clearData';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    content: {
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      minHeight: '50vh'
-    },
-    icon: {
-      position: 'absolute',
-      top: 10,
-      left: 20
-    },
-    inputFieldsContainer: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-end'
-    },
-    submitButton: {
-      background: '#71624C',
-      color: '#FFFFFF',
-      padding: '0.3rem 3rem',
-      fontWeight: 700,
-      '&:hover': {
-        background: theme.palette.secondary.dark
-      }
-    },
-    report: {
-      position: 'absolute',
-      right: 20,
-      bottom: 20
+const PREFIX = 'Lockscreen';
+const classes = {
+  container: `${PREFIX}-container`,
+  root: `${PREFIX}-root`,
+  content: `${PREFIX}-content`,
+  icon: `${PREFIX}-icon`,
+  inputFieldsContainer: `${PREFIX}-inputFieldsContainer`,
+  submitButton: `${PREFIX}-submitButton`,
+  report: `${PREFIX}-report`
+};
+
+const Root = styled('div')(({ theme }) => ({
+  width: '100%',
+  height: '100%',
+  [`& .${classes.root}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  [`& .${classes.content}`]: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: '50vh'
+  },
+  [`& .${classes.icon}`]: {
+    position: 'absolute',
+    top: 10,
+    left: 20
+  },
+  [`& .${classes.inputFieldsContainer}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end'
+  },
+  [`& .${classes.submitButton}`]: {
+    background: '#71624C',
+    color: '#FFFFFF',
+    padding: '0.3rem 3rem',
+    fontWeight: 700,
+    '&:hover': {
+      background: theme.palette.secondary.dark
     }
-  })
-);
+  },
+  [`& .${classes.report}`]: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20
+  }
+}));
 
 interface State {
   password: string;
@@ -77,7 +83,6 @@ interface State {
 }
 
 const LockScreen = (props: any) => {
-  const classes = useStyles();
   const theme = useTheme();
 
   const [values, setValues] = React.useState<State>({
@@ -115,43 +120,52 @@ const LockScreen = (props: any) => {
   };
 
   const handleSubmit = async () => {
-    if (await verifyPassword(values.password.trim())) {
+    const password = values.password.trim();
+
+    if (!password) {
+      setValues({
+        ...values,
+        error: 'Please enter a password'
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (await verifyPassword(password)) {
       setValues({
         ...values,
         error: ''
       });
-      passEnDb.setPassHash(generateSinglePasswordHash(values.password.trim()));
-      await loadDatabases();
+      passEnDb.setPassHash(generateSinglePasswordHash(password));
+      setIsLoading(false);
       props.handleClose();
     } else {
       setValues({
         ...values,
-        error: 'Please Enter Correct Password'
+        error: 'Please enter correct password'
       });
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
-  let timeout: NodeJS.Timeout;
+  const timeout = React.useRef<NodeJS.Timeout | undefined>(undefined);
   React.useEffect(() => {
     if (isLoading) {
-      timeout = setTimeout(handleSubmit, 0);
+      timeout.current = setTimeout(handleSubmit, 0);
     }
-  }, [isLoading]);
 
-  React.useEffect(() => {
     return () => {
-      if (timeout) {
-        clearTimeout(timeout);
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+        timeout.current = undefined;
       }
     };
-  }, []);
+  }, [isLoading]);
 
   const ENTER_KEY = 13;
   const handleKeyPress = (event: any) => {
     if (event.keyCode === ENTER_KEY) {
-      handleSubmit();
+      setIsLoading(true);
     }
   };
 
@@ -179,7 +193,7 @@ const LockScreen = (props: any) => {
   };
 
   return (
-    <>
+    <Root className={classes.container}>
       <CustomizedDialog
         open={confirmationDialog}
         handleClose={handleCloseConfirmation}
@@ -248,15 +262,18 @@ const LockScreen = (props: any) => {
                   value={values.password}
                   disabled={isLoading}
                   onChange={handleChange('password')}
-                  placeholder="Enter Your Password here"
+                  onKeyDown={handleKeyPress}
+                  placeholder="Enter Password"
                   label="Enter Password"
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
                         <IconButton
+                          tabIndex={-1}
                           aria-label="toggle password visibility"
                           onClick={handleClickShowPassword}
                           onMouseDown={handleMouseDownPassword}
+                          size="large"
                         >
                           {values.showPassword ? (
                             <Visibility
@@ -337,11 +354,12 @@ const LockScreen = (props: any) => {
           title="Report issue"
           onClick={handleFeedbackOpen}
           className={classes.report}
+          size="large"
         >
           <ReportIcon color="secondary" />
         </IconButton>
       </Grid>
-    </>
+    </Root>
   );
 };
 

@@ -1,13 +1,14 @@
 import { ALLCOINS, COINS, Erc20CoinData } from '@cypherock/communication';
-import { Typography } from '@material-ui/core';
-import Button from '@material-ui/core/Button';
-import ButtonGroup from '@material-ui/core/ButtonGroup';
-import CircularProgress from '@material-ui/core/CircularProgress';
-import FormControlLabel from '@material-ui/core/FormControlLabel';
-import Grid from '@material-ui/core/Grid';
-import { createStyles, makeStyles, Theme } from '@material-ui/core/styles';
-import Tooltip from '@material-ui/core/Tooltip';
-import AlertIcon from '@material-ui/icons/ReportProblemOutlined';
+import AlertIcon from '@mui/icons-material/ReportProblemOutlined';
+import { Typography } from '@mui/material';
+import Button from '@mui/material/Button';
+import ButtonGroup from '@mui/material/ButtonGroup';
+import CircularProgress from '@mui/material/CircularProgress';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Grid from '@mui/material/Grid';
+import { styled } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import BigNumber from 'bignumber.js';
 import clsx from 'clsx';
 import PropTypes from 'prop-types';
 import React, { useEffect, useState } from 'react';
@@ -42,139 +43,171 @@ import {
   StepComponentPropTypes
 } from './StepComponentProps';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: '100%',
-      marginTop: '1rem'
-    },
-    button: {
-      color: theme.palette.text.secondary,
-      background: '#131619',
-      textTransform: 'none',
-      fontSize: '0.9rem',
-      fontWeight: 400,
-      borderLeft: `1px solid ${theme.palette.primary.light}`
-    },
-    active: {
-      border: `1px solid ${theme.palette.secondary.dark} !important`,
-      fontWeight: 600,
-      color: theme.palette.text.primary,
-      letterSpacing: '1px',
-      zIndex: 1
-    },
-    buttonGroup: {
-      border: `1px solid ${theme.palette.primary.light}`
-    },
-    singleTransaction: {
-      width: '80%'
-    },
-    batchTransaction: {
-      width: '80%'
-    },
-    networkFees: {
-      width: '80%',
-      marginTop: 30,
-      marginBottom: 35
-    },
-    networkLabel: {
-      display: 'flex',
-      alignItems: 'center',
-      color: theme.palette.primary.light,
-      fontSize: '0.9rem',
-      marginBottom: 20,
-      padding: '0rem 0.5rem',
-      '& .text': {
-        marginRight: 20
-      }
-    },
-    networkButton: {
-      textTransform: 'none',
-      color: theme.palette.secondary.main,
-      padding: 0,
-      height: 20,
+const PREFIX = 'WalletSendRecipient';
+
+const classes = {
+  root: `${PREFIX}-root`,
+  button: `${PREFIX}-button`,
+  active: `${PREFIX}-active`,
+  buttonGroup: `${PREFIX}-buttonGroup`,
+  singleTransaction: `${PREFIX}-singleTransaction`,
+  batchTransaction: `${PREFIX}-batchTransaction`,
+  networkFees: `${PREFIX}-networkFees`,
+  networkLabel: `${PREFIX}-networkLabel`,
+  networkButton: `${PREFIX}-networkButton`,
+  batchDustbin: `${PREFIX}-batchDustbin`,
+  divider: `${PREFIX}-divider`,
+  recipientFooter: `${PREFIX}-recipientFooter`,
+  recipientTotal: `${PREFIX}-recipientTotal`,
+  recipientContinueButton: `${PREFIX}-recipientContinueButton`,
+  sendMaxBtn: `${PREFIX}-sendMaxBtn`,
+  sendMaxBtnActive: `${PREFIX}-sendMaxBtnActive`,
+  amountUSD: `${PREFIX}-amountUSD`,
+  center: `${PREFIX}-center`,
+  manualFeeErrorInfo: `${PREFIX}-manualFeeErrorInfo`,
+  sliderFeeErrorInfo: `${PREFIX}-sliderFeeErrorInfo`,
+  extras: `${PREFIX}-extras`,
+  primaryColor: `${PREFIX}-primaryColor`,
+  dangerColor: `${PREFIX}-dangerColor`
+};
+
+const Root = styled(Grid)(({ theme }) => ({
+  [`&.${classes.root}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: '1rem'
+  },
+  [`& .${classes.button}`]: {
+    color: theme.palette.text.secondary,
+    background: '#131619',
+    textTransform: 'none',
+    fontSize: '0.9rem',
+    fontWeight: 400,
+    borderLeft: `1px solid ${theme.palette.primary.light}`
+  },
+  [`& .${classes.active}`]: {
+    border: `1px solid ${theme.palette.secondary.dark} !important`,
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+    letterSpacing: '1px',
+    zIndex: 1
+  },
+  [`& .${classes.buttonGroup}`]: {
+    border: `1px solid ${theme.palette.primary.light}`
+  },
+  [`& .${classes.singleTransaction}`]: {
+    width: '80%'
+  },
+  [`& .${classes.batchTransaction}`]: {
+    width: '80%'
+  },
+  [`& .${classes.networkFees}`]: {
+    width: '80%',
+    marginTop: 30,
+    marginBottom: 35
+  },
+  [`& .${classes.networkLabel}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    color: theme.palette.primary.light,
+    fontSize: '0.9rem',
+    marginBottom: 20,
+    padding: '0rem 0.5rem',
+    '& .text': {
+      marginRight: 20
+    }
+  },
+  [`& .${classes.networkButton}`]: {
+    textTransform: 'none',
+    color: theme.palette.secondary.main,
+    padding: 0,
+    height: 20,
+    fontSize: '0.7rem'
+  },
+  [`& .${classes.batchDustbin}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingBottom: '1rem !important'
+  },
+  [`& .${classes.divider}`]: {
+    width: '100%',
+    borderTop: `1px solid ${theme.palette.text.secondary}`
+  },
+  [`& .${classes.recipientFooter}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    width: '85%',
+    justifyContent: 'space-between'
+  },
+  [`& .${classes.recipientTotal}`]: {
+    display: 'flex',
+    marginTop: 20,
+    flexDirection: 'column',
+    '& span': {
+      color: theme.palette.secondary.light,
       fontSize: '0.7rem'
     },
-    batchDustbin: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'flex-end',
-      paddingBottom: '1rem !important'
-    },
-    divider: {
-      width: '100%',
-      borderTop: `1px solid ${theme.palette.text.secondary}`
-    },
-    recipientFooter: {
-      display: 'flex',
-      alignItems: 'center',
-      width: '85%',
-      justifyContent: 'space-between'
-    },
-    recipientTotal: {
-      display: 'flex',
-      marginTop: 20,
-      flexDirection: 'column',
-      '& span': {
-        color: theme.palette.secondary.light,
-        fontSize: '0.7rem'
-      },
-      '& .amount': {
-        color: theme.palette.secondary.main,
-        fontSize: '1.5rem',
-        '& .amountCurrency': {
-          fontSize: '1rem'
-        }
-      }
-    },
-    recipientContinueButton: {
-      padding: '1rem 4rem',
-      marginTop: 15
-    },
-    sendMaxBtn: {
-      width: '100px',
-      border: '1px solid #696969',
+    '& .amount': {
       color: theme.palette.secondary.main,
-      marginBottom: '5px'
-    },
-    sendMaxBtnActive: {
-      background: 'rgba(255, 255, 255, 0.2)'
-    },
-    amountUSD: {
-      marginLeft: '1rem',
-      color: theme.palette.info.light
-    },
-    center: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: '100%'
-    },
-    manualFeeErrorInfo: {
-      marginTop: '5px'
-    },
-    sliderFeeErrorInfo: {
-      marginTop: '20px'
-    },
-    extras: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      padding: '0.5rem 0rem',
-      marginLeft: -10
-    },
-    primaryColor: {
-      color: theme.palette.secondary.dark
-    },
-    dangerColor: {
-      color: theme.palette.error.dark
+      fontSize: '1.5rem',
+      '& .amountCurrency': {
+        fontSize: '1rem'
+      }
     }
-  })
-);
+  },
+  [`& .${classes.recipientContinueButton}`]: {
+    padding: '1rem 4rem',
+    marginTop: 15
+  },
+  [`& .${classes.sendMaxBtn}`]: {
+    width: '100px',
+    border: '1px solid #696969',
+    color: theme.palette.secondary.main,
+    marginBottom: '5px'
+  },
+  [`& .${classes.sendMaxBtnActive}`]: {
+    background: 'rgba(255, 255, 255, 0.2)'
+  },
+  [`& .${classes.amountUSD}`]: {
+    marginLeft: '1rem',
+    color: theme.palette.info.light
+  },
+  [`&.${classes.center}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%'
+  },
+  [`& .${classes.center}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%'
+  },
+  [`& .${classes.manualFeeErrorInfo}`]: {
+    marginTop: '5px'
+  },
+  [`& .${classes.sliderFeeErrorInfo}`]: {
+    marginTop: '20px'
+  },
+  [`&.${classes.extras}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    padding: '0.5rem 0rem',
+    marginLeft: -10
+  },
+  [`& .${classes.primaryColor}`]: {
+    color: theme.palette.secondary.dark
+  },
+  [`& .${classes.dangerColor}`]: {
+    color: theme.palette.error.dark
+  }
+}));
 
 type BatchRecipientProps = {
   handleDelete: (e: any) => void;
@@ -313,11 +346,11 @@ const Recipient: React.FC<StepComponentProps> = props => {
     total,
     buttonDisabled,
     addBatchTransaction,
+    isButtonLoading,
     estimateGasLimit,
     setEstimateGasLimit,
     duplicateBatchAddresses
   } = props;
-  const classes = useStyles();
   const {
     active,
     batchTransaction,
@@ -337,25 +370,21 @@ const Recipient: React.FC<StepComponentProps> = props => {
   const { coinDetails } = useCurrentCoin();
 
   const {
-    selectedWallet: { passwordSet, passphraseSet, walletId }
+    selectedWallet: { passwordSet, passphraseSet, _id }
   } = useSelectedWallet();
 
   const { token } = useTokenContext();
 
-  const coinAbbr = token ? token.coin : coinDetails.coin;
+  const coinAbbr = token ? token.coin : coinDetails.slug;
   const coinPrice = token ? token.displayPrice : coinDetails.displayPrice;
 
   const { sendTransaction } = useSendTransactionContext();
 
-  const {
-    deviceConnection,
-    devicePacketVersion,
-    deviceSdkVersion,
-    beforeFlowStart,
-    setIsInFlow
-  } = useConnection();
+  const { deviceConnection, deviceSdkVersion, beforeFlowStart, setIsInFlow } =
+    useConnection();
 
-  const [mediumFee, setMediumFee] = useState(transactionFee);
+  const intTransactionFee = parseInt(transactionFee, 10) || 0;
+  const [mediumFee, setMediumFee] = useState(intTransactionFee);
   const [isMediumFeeLoading, setIsMediumFeeLoading] = useState(false);
   const [mediumFeeError, setMediumFeeError] = useState(false);
 
@@ -372,7 +401,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
       }
     }
 
-    return prevInfo[coinDetails.coin];
+    return prevInfo[coinDetails.slug];
   };
 
   const lowFeePercentage = 0.5;
@@ -390,13 +419,13 @@ const Recipient: React.FC<StepComponentProps> = props => {
       }
     }
 
-    prevInfo[coinDetails.coin] = fees;
+    prevInfo[coinDetails.slug] = fees;
     localStorage.setItem('mediumFees', JSON.stringify(prevInfo));
   };
 
   useEffect(() => {
     setIsMediumFeeLoading(true);
-    getFees(coinDetails.coin)
+    getFees(coinDetails.slug)
       .then(res => {
         logger.info(`Medium Fee is ${res}`);
         setMediumFee(res + 2);
@@ -421,7 +450,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
 
   let validatedAddresses: any[any] = [];
 
-  const isEthereum = (ALLCOINS[coinDetails.coin] || { isEth: false }).isEth;
+  const isEthereum = (ALLCOINS[coinDetails.slug] || { isEth: false }).isEth;
 
   const handleCheckAddress = () => {
     let isValid = true;
@@ -429,11 +458,11 @@ const Recipient: React.FC<StepComponentProps> = props => {
 
     for (const recipient of batchRecipientData) {
       const { recipient: recipient1, id } = recipient;
-      let { coin } = coinDetails;
+      let { slug } = coinDetails;
       if (isEthereum) {
-        coin = 'eth';
+        slug = 'eth';
       }
-      const addressValid = verifyAddress(recipient1.trim(), coin);
+      const addressValid = verifyAddress(recipient1.trim(), slug);
       if (!addressValid) {
         isValid = false;
       }
@@ -459,21 +488,20 @@ const Recipient: React.FC<StepComponentProps> = props => {
 
       sendTransaction.handleSendTransaction({
         connection: deviceConnection,
-        packetVersion: devicePacketVersion,
         sdkVersion: deviceSdkVersion,
         setIsInFlow,
-        walletId,
+        walletId: _id,
         pinExists: passwordSet,
         passphraseExists: passphraseSet,
         xpub: coinDetails.xpub,
         zpub: coinDetails.zpub,
-        coinType: coinDetails.coin,
+        coinType: coinDetails.slug,
         outputList: changeFormatOfOutputList(
           batchRecipientData,
-          coinDetails.coin,
+          coinDetails.slug,
           token
         ),
-        fees: transactionFee,
+        fees: intTransactionFee,
         isSendAll: maxSend,
         data: {
           gasLimit,
@@ -508,9 +536,9 @@ const Recipient: React.FC<StepComponentProps> = props => {
   const getFeeInput = () => {
     if (isMediumFeeLoading) {
       return (
-        <div className={classes.center}>
+        <Root className={classes.center}>
           <CircularProgress color="secondary" />
-        </div>
+        </Root>
       );
     }
 
@@ -520,7 +548,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
           <CustomSlider
             handleTransactionFeeChangeSlider={handleTransactionFeeChangeSlider}
             mediumFee={mediumFee}
-            fee={transactionFee}
+            fee={intTransactionFee}
           />
           {mediumFeeError && getFeeErrorInfo()}
         </>
@@ -531,11 +559,10 @@ const Recipient: React.FC<StepComponentProps> = props => {
       <>
         <Input
           placeHolder={`Enter transaction fees in ${
-            COINS[coinDetails.coin.toLowerCase()].fees
+            COINS[coinDetails.slug.toLowerCase()].fees
           }`}
           onChange={handleTransactionFeeChange}
           type="number"
-          min="1"
           value={transactionFee}
         />
         {mediumFeeError && getFeeErrorInfo()}
@@ -546,7 +573,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
   const getDuplicateWarning = (id: string) => {
     if (duplicateBatchAddresses.includes(id)) {
       return (
-        <Grid
+        <Root
           container
           className={classes.extras}
           style={{ marginLeft: '0' }}
@@ -559,14 +586,14 @@ const Recipient: React.FC<StepComponentProps> = props => {
           <Typography color="secondary">
             This address is already present
           </Typography>
-        </Grid>
+        </Root>
       );
     }
     return <></>;
   };
 
   return (
-    <Grid container className={root}>
+    <Root container className={root}>
       {!isEthereum && (
         <ButtonGroup
           disableElevation
@@ -640,7 +667,13 @@ const Recipient: React.FC<StepComponentProps> = props => {
           />
           <Typography className={amountUSD}>
             {' '}
-            ~( ${formatDisplayAmount(total * parseFloat(coinPrice), 2, true)})
+            ~( $
+            {formatDisplayAmount(
+              total.multipliedBy(new BigNumber(coinPrice)),
+              2,
+              true
+            )}
+            )
           </Typography>
           {isEthereum && (
             <div style={{ marginTop: '10px' }}>
@@ -678,11 +711,10 @@ const Recipient: React.FC<StepComponentProps> = props => {
           <Grid item xs={12}>
             {batchRecipientData.map((recipient: any, index) => {
               return (
-                <>
+                <div key={recipient.id}>
                   <BatchRecipient
                     handleDelete={handleDelete}
                     handleChange={handleInputChange}
-                    key={recipient.id}
                     id={recipient.id.toString()}
                     recipient={recipient}
                     handleCopyFromClipboard={handleCopyFromClipboard}
@@ -691,7 +723,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
                     allowDelete={batchRecipientData.length > 1}
                   />
                   {getDuplicateWarning(recipient.id.toString())}
-                </>
+                </div>
               );
             })}
           </Grid>
@@ -727,7 +759,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
           </Typography>
         </div>
         {getFeeInput()}
-        {transactionFee < lowFeePercentage * mediumFee && (
+        {intTransactionFee < lowFeePercentage * mediumFee && (
           <div style={{ textAlign: 'center' }}>
             <Typography
               className="text"
@@ -766,7 +798,7 @@ const Recipient: React.FC<StepComponentProps> = props => {
                 <small>TRANSACTION FEE:</small>
                 {` ~${formatDisplayAmount(sendTransaction.approxTotalFee)} `}
                 <span className="amountCurrency">
-                  {coinDetails.coin.toUpperCase()}
+                  {coinDetails.slug.toUpperCase()}
                   &nbsp;&nbsp;&nbsp;
                 </span>
                 <span style={{ fontSize: '0.7rem' }}>
@@ -780,13 +812,13 @@ const Recipient: React.FC<StepComponentProps> = props => {
               </Typography>
             </div>
             <Typography variant="caption" color="secondary">
-              TOTAL
+              {token ? 'AMOUNT' : 'TOTAL'}
             </Typography>
             <Typography variant="caption" color="secondary" className="amount">
               {token
                 ? `${formatDisplayAmount(total)} `
                 : `${formatDisplayAmount(
-                    total + sendTransaction.approxTotalFee
+                    total.plus(new BigNumber(sendTransaction.approxTotalFee))
                   )} `}
               <span className="amountCurrency">
                 {coinAbbr.toUpperCase()}
@@ -795,13 +827,14 @@ const Recipient: React.FC<StepComponentProps> = props => {
               <span style={{ fontSize: '1rem' }}>
                 {token
                   ? `(~ $${formatDisplayAmount(
-                      total * parseFloat(token.displayPrice),
+                      total.multipliedBy(new BigNumber(token.displayPrice)),
                       2,
                       true
                     )})`
                   : `(~ $${formatDisplayAmount(
-                      (total + sendTransaction.approxTotalFee) *
-                        parseFloat(coinDetails.displayPrice),
+                      total
+                        .plus(new BigNumber(sendTransaction.approxTotalFee))
+                        .multipliedBy(new BigNumber(coinDetails.displayPrice)),
                       2,
                       true
                     )})`}
@@ -810,16 +843,18 @@ const Recipient: React.FC<StepComponentProps> = props => {
           </div>
         )}
         <CustomButton
-          disabled={buttonDisabled || sendTransaction.estimationError}
+          disabled={
+            buttonDisabled || isButtonLoading || sendTransaction.estimationError
+          }
           className={recipientContinueButton}
           onClick={() => {
             handleCheckAddress();
           }}
         >
-          {buttonDisabled ? <CircularProgress size={25} /> : 'Continue'}
+          {isButtonLoading ? <CircularProgress size={25} /> : 'Continue'}
         </CustomButton>
       </div>
-    </Grid>
+    </Root>
   );
 };
 

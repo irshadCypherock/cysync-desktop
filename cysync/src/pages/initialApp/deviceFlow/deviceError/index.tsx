@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 
 import DialogBox from '../../../../designSystem/designComponents/dialog/dialogBox';
-import { useConnection } from '../../../../store/provider';
+import {
+  DeviceConnectionState,
+  useConnection
+} from '../../../../store/provider';
 import logger from '../../../../utils/logger';
 
 import PopupComponent from './popup';
 
 const DeviceErrorPopup = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { verifyState } = useConnection();
+  const { deviceConnectionState } = useConnection();
 
   const onClose = () => {
     setIsOpen(false);
@@ -16,13 +19,18 @@ const DeviceErrorPopup = () => {
   };
 
   useEffect(() => {
-    // Open only when device is not ready or unknown error occured.
-    const doOpen = [6, 7].includes(verifyState);
+    // Open only when device is not ready or unknown error occurred.
+    const doOpen = [
+      DeviceConnectionState.DEVICE_NOT_READY,
+      DeviceConnectionState.UNKNOWN_ERROR
+    ].includes(deviceConnectionState);
     setIsOpen(doOpen);
     if (doOpen) {
-      logger.info('Initial Device error prompt open', { verifyState });
+      logger.info('Initial Device error prompt open', {
+        deviceConnectionState
+      });
     }
-  }, [verifyState]);
+  }, [deviceConnectionState]);
 
   if (isOpen) {
     return (
@@ -32,9 +40,7 @@ const DeviceErrorPopup = () => {
         open={isOpen}
         handleClose={onClose}
         isClosePresent
-        restComponents={
-          <PopupComponent state={verifyState} handleClose={onClose} />
-        }
+        restComponents={<PopupComponent handleClose={onClose} />}
       />
     );
   }

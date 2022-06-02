@@ -42,4 +42,20 @@ export class BalanceSyncItem extends SyncItem {
 
     return false;
   }
+
+  clone() {
+    const newItem = new BalanceSyncItem({
+      xpub: this.xpub,
+      zpub: this.zpub,
+      coinType: this.coinType,
+      walletId: this.walletId,
+      ethCoin: this.ethCoin,
+      module: this.module,
+      isRefresh: this.isRefresh
+    });
+
+    newItem.retries = this.retries;
+
+    return newItem;
+  }
 }

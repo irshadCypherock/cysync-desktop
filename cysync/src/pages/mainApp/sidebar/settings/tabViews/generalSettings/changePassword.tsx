@@ -1,21 +1,16 @@
-import { Grid } from '@material-ui/core';
-import MIconButton from '@material-ui/core/IconButton';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import Visibility from '@material-ui/icons/Visibility';
-import VisibilityOff from '@material-ui/icons/VisibilityOff';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { Grid } from '@mui/material';
+import MIconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import { styled, useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import React from 'react';
 
 import DialogBoxConfirmation from '../../../../../../designSystem/designComponents/dialog/dialogBoxConfirmation';
 import Input from '../../../../../../designSystem/designComponents/input/input';
-import { useLockscreen } from '../../../../../../store/provider';
+import { useLockscreen, useSnackbar } from '../../../../../../store/provider';
 import {
   checkPassword,
   generatePasswordHash,
@@ -25,29 +20,36 @@ import {
 } from '../../../../../../utils/auth';
 import logger from '../../../../../../utils/logger';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    inputs: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      height: 'auto',
-      width: '100%'
-    },
-    buttons: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center'
-    },
-    error: {
-      color: theme.palette.error.main
-    },
-    marginTopBottom: {
-      margin: '0.5rem 0rem'
-    }
-  })
-);
+const PREFIX = 'ChangePassword';
+
+const classes = {
+  inputs: `${PREFIX}-inputs`,
+  buttons: `${PREFIX}-buttons`,
+  error: `${PREFIX}-error`,
+  marginTopBottom: `${PREFIX}-marginTopBottom`
+};
+
+const Root = styled(Grid)(({ theme }) => ({
+  [`& .${classes.inputs}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 'auto',
+    width: '100%'
+  },
+  [`& .${classes.buttons}`]: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  [`& .${classes.error}`]: {
+    color: theme.palette.error.main
+  },
+  [`& .${classes.marginTopBottom}`]: {
+    margin: '0.5rem 0rem'
+  }
+}));
 
 interface State {
   oldPassword: string;
@@ -68,24 +70,40 @@ const ChangePassword: React.FC<Props> = ({
   closeChangePassword,
   handleChangePasswordDialog
 }) => {
-  const classes = useStyles();
   const theme = useTheme();
   const lockscreen = useLockscreen();
-  const [values, setValues] = React.useState<State>({
+  const snackbar = useSnackbar();
+  const INITIAL_VALUES = {
     oldPassword: '',
     password: '',
     confirmPassword: '',
     showPassword: false,
     showConfirmPassword: false
+  };
+  const [values, setValues] = React.useState<State>({
+    ...INITIAL_VALUES
   });
   const [isLoading, setIsLoading] = React.useState(false);
 
   const [error, setError] = React.useState('');
 
+  const resetState = () => {
+    setValues({ ...INITIAL_VALUES });
+    setIsLoading(false);
+    setError('');
+  };
+
   const handleChange =
     (prop: keyof State) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setValues({ ...values, [prop]: event.target.value });
     };
+
+  const ENTER_KEY = 13;
+  const handleKeyPress = (event: any) => {
+    if (event.keyCode === ENTER_KEY) {
+      setIsLoading(true);
+    }
+  };
 
   const handleClickShowPassword = () => {
     setValues({ ...values, showPassword: !values.showPassword });
@@ -93,6 +111,11 @@ const ChangePassword: React.FC<Props> = ({
 
   const handleClickShowConfirmPassword = () => {
     setValues({ ...values, showConfirmPassword: !values.showConfirmPassword });
+  };
+
+  const closeDialogBox = () => {
+    resetState();
+    closeChangePassword();
   };
 
   const handleMouseDownPassword = (
@@ -111,12 +134,27 @@ const ChangePassword: React.FC<Props> = ({
           setError(passwordCheckError);
         } else if (type === 'change') {
           if (await verifyPassword(values.oldPassword.trim())) {
-            setError('');
-            const passHash = await generatePasswordHash(values.password.trim());
-            await passChangeEffect(passHash.singleHash);
-            setPasswordHash(passHash.doubleHash);
-            lockscreen.setIsPasswordSet(true);
-            closeChangePassword();
+            if (values.password.trim() === values.oldPassword.trim()) {
+              setError('New password cannot be same as old password');
+            } else {
+              setError('');
+              const passHash = await generatePasswordHash(
+                values.password.trim()
+              );
+              await passChangeEffect(passHash.singleHash);
+              setPasswordHash(passHash.doubleHash);
+              lockscreen.setIsPasswordSet(true);
+              closeDialogBox();
+              snackbar.showSnackbar(
+                'Password changed Successfully !',
+                'success',
+                undefined,
+                {
+                  dontCloseOnClickAway: true,
+                  autoHideDuration: 4000
+                }
+              );
+            }
           } else {
             setError('Old Password is incorrect');
           }
@@ -126,7 +164,7 @@ const ChangePassword: React.FC<Props> = ({
           await passChangeEffect(passHash.singleHash);
           setPasswordHash(passHash.doubleHash);
           lockscreen.setIsPasswordSet(true);
-          closeChangePassword();
+          closeDialogBox();
         }
       }
     } catch (error) {
@@ -136,20 +174,19 @@ const ChangePassword: React.FC<Props> = ({
     setIsLoading(false);
   };
 
-  let timeout: NodeJS.Timeout;
+  const timeout = React.useRef<NodeJS.Timeout | undefined>(undefined);
   React.useEffect(() => {
     if (isLoading) {
-      timeout = setTimeout(handleSetPassword, 0);
+      timeout.current = setTimeout(handleSetPassword, 0);
     }
-  }, [isLoading]);
 
-  React.useEffect(() => {
     return () => {
-      if (timeout) {
-        clearTimeout(timeout);
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+        timeout.current = undefined;
       }
     };
-  }, []);
+  }, [isLoading]);
 
   const confirmChangePassword = async () => {
     setIsLoading(true);
@@ -162,12 +199,12 @@ const ChangePassword: React.FC<Props> = ({
       fullScreen
       maxWidth="sm"
       open={handleChangePasswordDialog}
-      handleClose={closeChangePassword}
+      handleClose={closeDialogBox}
       handleConfirmation={confirmChangePassword}
       confirmButtonDisabled={isLoading}
       rejectButtonDisabled={isLoading}
       restComponents={
-        <Grid item xs={7} style={{ marginBottom: '6rem' }}>
+        <Root item xs={7} style={{ marginBottom: '6rem' }}>
           <Typography
             color="textPrimary"
             variant="h4"
@@ -175,7 +212,9 @@ const ChangePassword: React.FC<Props> = ({
             gutterBottom
             style={{ margin: '0rem 0rem 3rem' }}
           >
-            Change password for your App
+            {type === 'change'
+              ? 'Change password for your App'
+              : 'Set password'}
           </Typography>
           <div className={classes.inputs}>
             {type === 'change' ? (
@@ -186,11 +225,13 @@ const ChangePassword: React.FC<Props> = ({
                 value={values.oldPassword}
                 placeholder="Enter Old Password"
                 onChange={handleChange('oldPassword')}
+                onKeyDown={handleKeyPress}
                 className={classes.marginTopBottom}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
                       <MIconButton
+                        tabIndex={-1}
                         aria-label="toggle password visibility"
                         onClick={handleClickShowPassword}
                         onMouseDown={handleMouseDownPassword}
@@ -222,6 +263,7 @@ const ChangePassword: React.FC<Props> = ({
                 endAdornment: (
                   <InputAdornment position="end">
                     <MIconButton
+                      tabIndex={-1}
                       aria-label="toggle password visibility"
                       onClick={handleClickShowPassword}
                       onMouseDown={handleMouseDownPassword}
@@ -247,11 +289,13 @@ const ChangePassword: React.FC<Props> = ({
               value={values.confirmPassword}
               placeholder="Confirm Password"
               onChange={handleChange('confirmPassword')}
+              onKeyDown={handleKeyPress}
               className={classes.marginTopBottom}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
                     <MIconButton
+                      tabIndex={-1}
                       aria-label="toggle password visibility"
                       onClick={handleClickShowConfirmPassword}
                       onMouseDown={handleMouseDownPassword}
@@ -274,7 +318,7 @@ const ChangePassword: React.FC<Props> = ({
           <Typography className={classes.error} align="center">
             {error}
           </Typography>
-        </Grid>
+        </Root>
       }
     />
   );

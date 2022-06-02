@@ -1,5 +1,7 @@
+import BigNumber from 'bignumber.js';
 import { useEffect, useState } from 'react';
 
+import logger from '../../utils/logger';
 import { transactionDb } from '../database';
 
 import { DisplayTransaction } from './types';
@@ -114,33 +116,33 @@ export const useTransactionData: UseTransactionData = () => {
 
       case 4:
         sortFunc = (a, b) => {
-          if (a.amount > b.amount) return -1;
-          if (a.amount < b.amount) return 1;
-          return 0;
+          const numA = new BigNumber(a.displayAmount);
+          const numB = new BigNumber(b.displayAmount);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 5:
         sortFunc = (a, b) => {
-          if (a.amount > b.amount) return 1;
-          if (a.amount < b.amount) return -1;
-          return 0;
+          const numA = new BigNumber(a.displayAmount);
+          const numB = new BigNumber(b.displayAmount);
+          return numA.comparedTo(numB);
         };
         break;
 
       case 6:
         sortFunc = (a, b) => {
-          if (a.displayValue > b.displayValue) return -1;
-          if (a.displayValue < b.displayValue) return 1;
-          return 0;
+          const numA = new BigNumber(a.displayValue);
+          const numB = new BigNumber(b.displayValue);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 7:
         sortFunc = (a, b) => {
-          if (a.displayValue > b.displayValue) return 1;
-          if (a.displayValue < b.displayValue) return -1;
-          return 0;
+          const numA = new BigNumber(a.displayValue);
+          const numB = new BigNumber(b.displayValue);
+          return numA.comparedTo(numB);
         };
         break;
       default:
@@ -162,14 +164,18 @@ export const useTransactionData: UseTransactionData = () => {
       const date = new Date();
       sinceDate = new Date(date.getTime() - days * 24 * 60 * 60 * 1000);
     }
+    try {
+      const txns = await getAll({
+        sinceDate,
+        walletId: currentWallet,
+        coinType: currentCoin
+      });
 
-    const txns = await getAll({
-      sinceDate,
-      walletId: currentWallet,
-      coinType: currentCoin
-    });
-
-    sortFromTxns(txns, sortIndex);
+      sortFromTxns(txns, sortIndex);
+    } catch (e) {
+      logger.error('Error getting transactions from DB');
+      logger.error(e);
+    }
   };
 
   useEffect(() => {

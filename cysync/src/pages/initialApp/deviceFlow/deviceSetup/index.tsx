@@ -9,8 +9,8 @@ import UpgradingDevice from './stepperFormComponents/upgradingDevice';
 import DeviceSetupFormFlow from './stepperFormFlow';
 
 const deviceSetupData = [
-  ['CyCard  Authentication', CardAuthentication],
   ['Device  Authentication', DeviceAuthentication],
+  ['X1 Card  Authentication', CardAuthentication],
   ['Upgrading Device', UpgradingDevice]
 ];
 
@@ -21,7 +21,7 @@ interface Props {
   handlePrev: () => void;
 }
 
-const Index: React.FC<Props> = ({
+const InitialDeviceSetup: React.FC<Props> = ({
   open,
   handleClose,
   handlePrev,
@@ -46,11 +46,11 @@ const Index: React.FC<Props> = ({
   );
 };
 
-Index.propTypes = {
+InitialDeviceSetup.propTypes = {
   open: PropTypes.bool.isRequired,
   handleClose: PropTypes.func.isRequired,
   handleDeviceConnected: PropTypes.func.isRequired,
   handlePrev: PropTypes.func.isRequired
 };
 
-export default Index;
+export default InitialDeviceSetup;

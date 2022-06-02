@@ -1,13 +1,13 @@
-import Button from '@material-ui/core/Button';
-import CircularProgress from '@material-ui/core/CircularProgress';
-import Grid from '@material-ui/core/Grid';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import { makeStyles, useTheme } from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import ExpandLessIcon from '@material-ui/icons/ExpandLess';
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
-import SearchIcon from '@material-ui/icons/Search';
-import UnfoldMoreIcon from '@material-ui/icons/UnfoldMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SearchIcon from '@mui/icons-material/Search';
+import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import InputAdornment from '@mui/material/InputAdornment';
+import { styled, useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import BigNumber from 'bignumber.js';
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -18,6 +18,7 @@ import Icon from '../../../../designSystem/designComponents/icons/Icon';
 import Input from '../../../../designSystem/designComponents/input/input';
 import DropMenu from '../../../../designSystem/designComponents/menu/DropMenu';
 import ICONS from '../../../../designSystem/iconGroups/iconConstants';
+import { convertToDisplayValue } from '../../../../store/database';
 import {
   DisplayTransaction,
   useDebouncedFunction,
@@ -30,36 +31,54 @@ import logger from '../../../../utils/logger';
 import OneTransaction from './OneTransaction';
 import TransactionDialog from './TransactionDialog';
 
-const useStyles = makeStyles(theme => ({
-  head: {
+const PREFIX = 'Transaction';
+
+const classes = {
+  head: `${PREFIX}-head`,
+  transactionsInfo: `${PREFIX}-transactionsInfo`,
+  transactionsData: `${PREFIX}-transactionsData`,
+  header: `${PREFIX}-header`,
+  alignCenterRight: `${PREFIX}-alignCenterRight`,
+  loaderContainer: `${PREFIX}-loaderContainer`,
+  headerButtons: `${PREFIX}-headerButtons`
+};
+
+const StyledGrid = styled(Grid)(({ theme }) => ({
+  [`& .${classes.head}`]: {
     height: '5rem'
   },
-  transactionsInfo: {
+
+  [`& .${classes.transactionsInfo}`]: {
     borderBottom: `1px solid ${theme.palette.text.secondary}`,
     marginTop: 30
   },
-  transactionsData: {
+
+  [`& .${classes.transactionsData}`]: {
     // 300px is coverd by the rest of the elements on the screen
     height: 'calc(100vh - 300px)'
   },
-  header: {
+
+  [`& .${classes.header}`]: {
     display: 'flex',
     marginTop: 30,
     width: 'calc(100% - 18px)'
   },
-  alignCenterRight: {
+
+  [`& .${classes.alignCenterRight}`]: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
     justifyContent: 'center'
   },
-  loaderContainer: {
+
+  [`& .${classes.loaderContainer}`]: {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: '4rem'
   },
-  headerButtons: {
+
+  [`& .${classes.headerButtons}`]: {
     padding: '0px',
     color: theme.palette.grey[500],
     textTransform: 'none',
@@ -67,7 +86,7 @@ const useStyles = makeStyles(theme => ({
   }
 }));
 
-const Index = () => {
+const Transaction = () => {
   const location = useLocation();
 
   const {
@@ -90,7 +109,7 @@ const Index = () => {
   } = useTransactionData();
 
   const { allWallets, allCoins } = useWallets();
-  const classes = useStyles();
+
   const theme = useTheme();
   const [weekIndex, setWeekIndex] = React.useState(3);
   const [totalTransactions, setTotalTransactions] = useState(allTxn.length);
@@ -104,7 +123,7 @@ const Index = () => {
 
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    const coin = query.get('coin');
+    const coin = query.get('slug');
     const walletId = query.get('wallet');
 
     if (coin) {
@@ -118,7 +137,7 @@ const Index = () => {
     }
 
     if (walletId) {
-      const index = allWallets.findIndex(elem => elem.walletId === walletId);
+      const index = allWallets.findIndex(elem => elem._id === walletId);
       if (index !== -1) {
         setCurrentWallet(walletId);
         setWalletIndex(index + 1);
@@ -182,7 +201,7 @@ const Index = () => {
   const handleWalletChange = (selectedIndex: number) => {
     setWalletIndex(selectedIndex);
     if (selectedIndex === 0) setCurrentWallet(undefined);
-    else setCurrentWallet(allWallets[selectedIndex - 1].walletId);
+    else setCurrentWallet(allWallets[selectedIndex - 1]._id);
   };
 
   const handleCoinChange = (selectedIndex: number) => {
@@ -200,10 +219,10 @@ const Index = () => {
           date={new Date(data.confirmed).toLocaleDateString()}
           time={new Date(data.confirmed).toLocaleTimeString()}
           walletName={data.walletName}
-          initial={data.coin.toUpperCase()}
+          initial={data.slug?.toUpperCase()}
           amount={data.displayAmount}
           value={new BigNumber(data.displayValue).toFixed(2)}
-          result={data.sentReceive}
+          result={convertToDisplayValue(data.sentReceive)}
           decimal={data.coinDecimal}
           address={data.hash}
           onShowMore={() => setShowTxn(data)}
@@ -351,13 +370,44 @@ const Index = () => {
   };
 
   return (
-    <Grid container>
+    <StyledGrid container>
       <DialogBox
         maxWidth={false}
         open={showTxn !== null}
         handleClose={() => setShowTxn(null)}
         isClosePresent
-        restComponents={<TransactionDialog txn={showTxn} />}
+        restComponents={
+          <TransactionDialog
+            txn={
+              showTxn
+                ? {
+                    hash: showTxn.hash,
+                    total: showTxn.total,
+                    fees: showTxn.fees,
+                    amount: showTxn.amount,
+                    confirmations: showTxn.confirmations,
+                    walletId: showTxn.walletId,
+                    walletName: showTxn.walletName,
+                    slug: showTxn.slug,
+                    coin: showTxn.coin,
+                    status: showTxn.status,
+                    sentReceive: showTxn.sentReceive,
+                    confirmed: showTxn.confirmed,
+                    blockHeight: showTxn.blockHeight,
+                    displayAmount: showTxn.displayAmount,
+                    displayFees: showTxn.displayFees,
+                    displayTotal: showTxn.displayTotal,
+                    displayValue: showTxn.displayValue,
+                    isErc20: showTxn.isErc20,
+                    coinName: showTxn.coinName,
+                    coinDecimal: showTxn.coinDecimal,
+                    inputs: showTxn.inputs,
+                    outputs: showTxn.outputs
+                  }
+                : null
+            }
+          />
+        }
       />
       <Grid container className={classes.head}>
         <Grid
@@ -442,8 +492,8 @@ const Index = () => {
         </Grid>
       </Grid>
       {getMainTxnContent()}
-    </Grid>
+    </StyledGrid>
   );
 };
 
-export default Index;
+export default Transaction;

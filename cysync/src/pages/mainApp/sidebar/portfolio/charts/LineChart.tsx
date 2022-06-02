@@ -1,10 +1,5 @@
-import Button from '@material-ui/core/Button';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
+import Button from '@mui/material/Button';
+import { styled, useTheme } from '@mui/material/styles';
 import { ApexOptions } from 'apexcharts';
 import clsx from 'clsx';
 import React from 'react';
@@ -13,40 +8,47 @@ import Chart from 'react-apexcharts';
 import DropMenu from '../../../../../designSystem/designComponents/menu/DropMenu';
 import formatDisplayAmount from '../../../../../utils/formatDisplayAmount';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '0.3rem 0rem'
-    },
-    mapNavigation: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0rem 1rem'
-    },
-    buttons: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      width: '20%'
-    },
-    button: {
-      background: theme.palette.background.default,
-      color: theme.palette.text.secondary,
-      padding: '2px 8px',
-      minWidth: 'max-content'
-    },
-    selected: {
-      border: `1px solid ${theme.palette.text.secondary}`,
-      color: theme.palette.text.primary
-    }
-  })
-);
+const PREFIX = 'LineChart';
+
+const classes = {
+  root: `${PREFIX}-root`,
+  mapNavigation: `${PREFIX}-mapNavigation`,
+  buttons: `${PREFIX}-buttons`,
+  button: `${PREFIX}-button`,
+  selected: `${PREFIX}-selected`
+};
+
+const Root = styled('div')(({ theme }) => ({
+  [`&.${classes.root}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '0.3rem 0rem'
+  },
+  [`& .${classes.mapNavigation}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0rem 1rem'
+  },
+  [`& .${classes.buttons}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '20%'
+  },
+  [`& .${classes.button}`]: {
+    background: theme.palette.background.default,
+    color: theme.palette.text.secondary,
+    padding: '2px 8px',
+    minWidth: 'max-content'
+  },
+  [`& .${classes.selected}`]: {
+    border: `1px solid ${theme.palette.text.secondary}`,
+    color: theme.palette.text.primary
+  }
+}));
 
 const ApexChart = (props: any) => {
-  const classes = useStyles();
   const theme = useTheme();
 
   const {
@@ -68,6 +70,8 @@ const ApexChart = (props: any) => {
 
   const options: ApexOptions = {
     chart: {
+      width: '550px',
+      height: '230px',
       background: theme.palette.primary.main,
       type: 'area',
       dropShadow: {
@@ -153,18 +157,61 @@ const ApexChart = (props: any) => {
           return `$ ${formatDisplayAmount(value, 2, true)}`;
         }
       }
-    }
+    },
+    responsive: [
+      {
+        breakpoint: 980,
+        options: {
+          chart: {
+            width: '550px',
+            height: '200px'
+          }
+        }
+      },
+      {
+        breakpoint: 1090,
+        options: {
+          chart: {
+            width: '600px',
+            height: '210px'
+          }
+        }
+      },
+      {
+        breakpoint: 1200,
+        options: {
+          chart: {
+            width: '650px',
+            height: '220px'
+          }
+        }
+      },
+      {
+        breakpoint: 1350,
+        options: {
+          chart: {
+            width: '700px',
+            height: '230px'
+          }
+        }
+      },
+      {
+        breakpoint: 1600,
+        options: {
+          chart: {
+            width: '800px',
+            height: '250px'
+          }
+        }
+      }
+    ]
   };
 
   return (
-    <div className={classes.root}>
+    <Root className={classes.root}>
       <div className={classes.mapNavigation}>
         <DropMenu
-          options={coinList.map((item: any) =>
-            item.replace(/\w+/g, (w: any) => {
-              return w[0].toUpperCase() + w.slice(1).toLowerCase();
-            })
-          )}
+          options={coinList.map((item: any) => item.toUpperCase())}
           handleMenuItemSelectionChange={handleMenuItemSelectionChange}
           index={coinIndex}
           bg={false}
@@ -202,14 +249,8 @@ const ApexChart = (props: any) => {
           </Button>
         </div>
       </div>
-      <Chart
-        options={options}
-        series={series}
-        type="area"
-        width={700}
-        height={230}
-      />
-    </div>
+      <Chart options={options} series={series} type="area" />
+    </Root>
   );
 };
 

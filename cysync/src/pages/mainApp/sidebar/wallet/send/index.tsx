@@ -26,16 +26,16 @@ const SenderData = [
   ['Confirmation', Confirmation]
 ];
 
-const Index = () => {
+const WalletSend = () => {
   const { sendForm, setSendForm, sendTransaction } =
     useSendTransactionContext();
 
-  const { deviceConnection, devicePacketVersion } = useConnection();
+  const { deviceConnection } = useConnection();
 
   const { coinDetails } = useCurrentCoin();
   const { token } = useTokenContext();
 
-  const coinAbbr = token ? token.coin : coinDetails.coin;
+  const coinAbbr = token ? token.coin : coinDetails.slug;
 
   useEffect(() => {
     if (sendForm) {
@@ -50,7 +50,7 @@ const Index = () => {
 
   const handleSendFormClose = (abort?: boolean) => {
     if (abort) {
-      sendTransaction.cancelSendTxn(deviceConnection, devicePacketVersion);
+      sendTransaction.cancelSendTxn(deviceConnection);
     }
     Analytics.Instance.event(
       Analytics.Categories.SEND_TXN,
@@ -101,4 +101,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default WalletSend;

@@ -1,5 +1,5 @@
-import Grid from '@material-ui/core/Grid';
-import Typography from '@material-ui/core/Typography';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import React, { useEffect } from 'react';
 
@@ -35,7 +35,7 @@ const Authentication: React.FC<Props> = ({ verified, errorMessage }) => {
         <br />
         <DynamicTextView
           state={verified}
-          text="Tap the CyCard on top of the device"
+          text="Tap the X1 Card on top of the device"
         />
       </Grid>
     </Grid>

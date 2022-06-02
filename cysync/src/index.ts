@@ -8,10 +8,10 @@ import {
   crashReporter,
   dialog,
   globalShortcut,
-  ipcMain
+  ipcMain,
+  powerMonitor
 } from 'electron';
 import { download } from 'electron-dl';
-import fs from 'fs';
 import path from 'path';
 
 import packageJson from '../package.json';
@@ -34,7 +34,7 @@ const handleMainProcessError = async (error: any) => {
   logger.error('Unhandled error on main process');
   logger.error(error);
 
-  const title = 'Some error occured, Please contact cypherock for support.';
+  const title = 'Some error occurred, Please contact cypherock for support.';
   let errorMsg = 'Unknown error';
 
   if (error) {
@@ -174,18 +174,19 @@ const createWindow = async () => {
       await installExtensions();
     }
 
-    let { width, height, minWidth, minHeight } = getAppWindowSize();
-
-    if (width < 1100) {
-      width = 1100;
-      height = 800;
-      minWidth = 1100;
-      minHeight = 800;
-    }
+    const { width, height, minWidth, minHeight } = getAppWindowSize();
 
     logger.info('New Window According to Aspect Ratio: ', width, height);
 
     logger.info('Opening main screen');
+
+    logger.info('Config variables', {
+      log_level: process.env.LOG_LEVEL,
+      build_type: process.env.BUILD_TYPE,
+      server_env: process.env.SERVER_ENV,
+      github_repo: process.env.GITHUB_REPO,
+      node_env: process.env.NODE_ENV
+    });
 
     mainWindow = new BrowserWindow({
       show: false,
@@ -203,6 +204,12 @@ const createWindow = async () => {
         contextIsolation: false
       },
       icon: iconPath
+    });
+
+    powerMonitor.on('lock-screen', () => {
+      if (mainWindow) {
+        mainWindow.webContents.send('lock-screen');
+      }
     });
 
     mainWindow.on('focus', () => {
@@ -323,20 +330,6 @@ const createWindow = async () => {
 
     if (mainWindow === null) {
       throw new Error('Main window is not defined');
-    }
-
-    const firmwarePath = path.join(
-      app.getPath('userData'),
-      'app_dfu_package.bin'
-    );
-
-    if (process.env.BUILD_TYPE === 'debug') {
-      const doesFileExist = fs.existsSync(firmwarePath);
-
-      if (doesFileExist) {
-        mainWindow.webContents.send('download complete', firmwarePath);
-        return;
-      }
     }
 
     const currentWindow = mainWindow;

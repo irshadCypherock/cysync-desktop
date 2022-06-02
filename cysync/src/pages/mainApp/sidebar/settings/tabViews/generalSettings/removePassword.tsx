@@ -1,21 +1,16 @@
-import { Grid } from '@material-ui/core';
-import MIconButton from '@material-ui/core/IconButton';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import Visibility from '@material-ui/icons/Visibility';
-import VisibilityOff from '@material-ui/icons/VisibilityOff';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { Grid } from '@mui/material';
+import MIconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import { styled, useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import React from 'react';
 
 import DialogBoxConfirmation from '../../../../../../designSystem/designComponents/dialog/dialogBoxConfirmation';
 import Input from '../../../../../../designSystem/designComponents/input/input';
-import { useLockscreen } from '../../../../../../store/provider';
+import { useLockscreen, useSnackbar } from '../../../../../../store/provider';
 import {
   passChangeEffect,
   removePassword,
@@ -23,36 +18,40 @@ import {
 } from '../../../../../../utils/auth';
 import logger from '../../../../../../utils/logger';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    inputs: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      height: 'auto',
-      width: '100%'
-    },
-    buttons: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center'
-    },
-    error: {
-      color: theme.palette.error.main
-    },
-    marginTopBottom: {
-      margin: '0.5rem 0rem'
-    }
-  })
-);
+const PREFIX = 'RemovePassword';
+
+const classes = {
+  inputs: `${PREFIX}-inputs`,
+  buttons: `${PREFIX}-buttons`,
+  error: `${PREFIX}-error`,
+  marginTopBottom: `${PREFIX}-marginTopBottom`
+};
+
+const Root = styled(Grid)(({ theme }) => ({
+  [`& .${classes.inputs}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 'auto',
+    width: '100%'
+  },
+  [`& .${classes.buttons}`]: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  [`& .${classes.error}`]: {
+    color: theme.palette.error.main
+  },
+  [`& .${classes.marginTopBottom}`]: {
+    margin: '0.5rem 0rem'
+  }
+}));
 
 interface State {
   oldPassword: string;
-  password: string;
-  confirmPassword: string;
   showPassword: boolean;
-  showConfirmPassword: boolean;
 }
 
 type Props = {
@@ -61,25 +60,37 @@ type Props = {
 };
 
 const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
-  const classes = useStyles();
   const theme = useTheme();
   const lockscreen = useLockscreen();
-  const [values, setValues] = React.useState<State>({
+  const snackbar = useSnackbar();
+  const INITIAL_VALUES = {
     oldPassword: '',
-    password: '',
-    confirmPassword: '',
-    showPassword: false,
-    showConfirmPassword: false
+    showPassword: false
+  };
+  const [values, setValues] = React.useState<State>({
+    ...INITIAL_VALUES
   });
   const [isLoading, setIsLoading] = React.useState(false);
 
   const [error, setError] = React.useState('');
+
+  const resetState = () => {
+    setValues({ ...INITIAL_VALUES });
+    setIsLoading(false);
+    setError('');
+  };
 
   const handleChange =
     (prop: keyof State) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setValues({ ...values, [prop]: event.target.value });
     };
 
+  const ENTER_KEY = 13;
+  const handleKeyPress = (event: any) => {
+    if (event.keyCode === ENTER_KEY) {
+      setIsLoading(true);
+    }
+  };
   const handleClickShowPassword = () => {
     setValues({ ...values, showPassword: !values.showPassword });
   };
@@ -93,16 +104,25 @@ const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
   const handleSetPassword = async () => {
     try {
       if (!values.oldPassword.trim()) {
-        setError('Please enter your old password.');
+        setError('Please enter your password.');
       } else {
         if (await verifyPassword(values.oldPassword.trim())) {
           setError('');
           await passChangeEffect(null);
           lockscreen.setIsPasswordSet(false);
           removePassword();
-          onClose();
+          closeDialogBox();
+          snackbar.showSnackbar(
+            'Password removed Successfully !',
+            'success',
+            undefined,
+            {
+              dontCloseOnClickAway: true,
+              autoHideDuration: 4000
+            }
+          );
         } else {
-          setError('Old Password is incorrect');
+          setError('Password is incorrect');
         }
       }
     } catch (error) {
@@ -112,23 +132,27 @@ const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
     setIsLoading(false);
   };
 
-  let timeout: NodeJS.Timeout;
+  const timeout = React.useRef<NodeJS.Timeout | undefined>(undefined);
   React.useEffect(() => {
     if (isLoading) {
-      timeout = setTimeout(handleSetPassword, 0);
+      timeout.current = setTimeout(handleSetPassword, 0);
     }
-  }, [isLoading]);
 
-  React.useEffect(() => {
     return () => {
-      if (timeout) {
-        clearTimeout(timeout);
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+        timeout.current = undefined;
       }
     };
-  }, []);
+  }, [isLoading]);
 
   const confirmChangePassword = async () => {
     setIsLoading(true);
+  };
+
+  const closeDialogBox = () => {
+    resetState();
+    onClose();
   };
 
   return (
@@ -138,12 +162,12 @@ const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
       fullScreen
       maxWidth="sm"
       open={open}
-      handleClose={onClose}
+      handleClose={closeDialogBox}
       handleConfirmation={confirmChangePassword}
       confirmButtonDisabled={isLoading}
       rejectButtonDisabled={isLoading}
       restComponents={
-        <Grid
+        <Root
           item
           xs={7}
           style={{
@@ -160,20 +184,22 @@ const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
             gutterBottom
             style={{ marginBottom: '3rem' }}
           >
-            Enter your old password
+            Enter your password
           </Typography>
           <Input
             fullWidth
             size="small"
             type={values.showPassword ? 'text' : 'password'}
             value={values.oldPassword}
-            placeholder="Enter Old Password"
+            placeholder="Enter Your Password"
             onChange={handleChange('oldPassword')}
+            onKeyDown={handleKeyPress}
             className={classes.marginTopBottom}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
                   <MIconButton
+                    tabIndex={-1}
                     aria-label="toggle password visibility"
                     onClick={handleClickShowPassword}
                     onMouseDown={handleMouseDownPassword}
@@ -200,7 +226,7 @@ const RemovePassword: React.FC<Props> = ({ onClose, open }) => {
               {error}
             </Typography>
           )}
-        </Grid>
+        </Root>
       }
     />
   );

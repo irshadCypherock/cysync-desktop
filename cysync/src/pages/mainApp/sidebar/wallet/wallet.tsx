@@ -1,19 +1,15 @@
 import { ALLCOINS as COINS } from '@cypherock/communication';
-import Button from '@material-ui/core/Button';
-import Grid from '@material-ui/core/Grid';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import AddCircleIcon from '@material-ui/icons/AddCircle';
-import ExpandLessIcon from '@material-ui/icons/ExpandLess';
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
-import SearchIcon from '@material-ui/icons/Search';
-import UnfoldMoreIcon from '@material-ui/icons/UnfoldMore';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SearchIcon from '@mui/icons-material/Search';
+import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import InputAdornment from '@mui/material/InputAdornment';
+import { styled, useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import React, { useEffect, useState } from 'react';
 
@@ -28,79 +24,93 @@ import {
 import Analytics from '../../../../utils/analytics';
 
 import AddCoinForm from './addCoin';
+import allCoins from './addCoin/coins';
 import EthereumOneCoin from './EthereumOneCoin';
 import OneCoin from './OneCoin';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    search: {
-      width: '50%',
-      marginRight: '1rem'
+const PREFIX = 'Wallet';
+
+const classes = {
+  search: `${PREFIX}-search`,
+  button: `${PREFIX}-button`,
+  walletButtons: `${PREFIX}-walletButtons`,
+  icon: `${PREFIX}-icon`,
+  coinDataContainer: `${PREFIX}-coinDataContainer`,
+  divider: `${PREFIX}-divider`,
+  totalFilter: `${PREFIX}-totalFilter`,
+  header: `${PREFIX}-header`,
+  alignCenterRight: `${PREFIX}-alignCenterRight`,
+  headerButtons: `${PREFIX}-headerButtons`
+};
+
+const Root = styled(Grid)(({ theme }) => ({
+  [`& .${classes.search}`]: {
+    width: '50%',
+    marginRight: '1rem'
+  },
+  [`& .${classes.button}`]: {
+    width: '100%',
+    height: '100%',
+    textTransform: 'none',
+    background: 'rgba(255,255,255,0.05)',
+    color: theme.palette.text.primary
+  },
+  [`& .${classes.walletButtons}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    border: `1px solid ${theme.palette.primary.light}`,
+    borderRadius: 5,
+    height: '2.5rem',
+    width: '9rem'
+  },
+  [`& .${classes.icon}`]: {
+    margin: 0
+  },
+  [`& .${classes.coinDataContainer}`]: {
+    // 290px is coverd by the rest of the elements on the screen
+    maxHeight: 'calc(100vh - 290px)',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    '&::-webkit-scrollbar': {
+      width: '8px',
+      background: theme.palette.primary.light
     },
-    button: {
-      width: '100%',
-      height: '100%',
-      textTransform: 'none',
-      background: 'rgba(255,255,255,0.05)'
-    },
-    walletButtons: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      border: `1px solid ${theme.palette.primary.light}`,
-      borderRadius: 5,
-      height: '2.5rem',
-      width: '9rem'
-    },
-    icon: {
-      margin: 0
-    },
-    coinDataContainer: {
-      // 290px is coverd by the rest of the elements on the screen
-      maxHeight: 'calc(100vh - 290px)',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      '&::-webkit-scrollbar': {
-        width: '8px',
-        background: theme.palette.primary.light
-      },
-      '&::-webkit-scrollbar-thumb': {
-        background: theme.palette.text.secondary
-      }
-    },
-    divider: {
-      backgroundColor: theme.palette.primary.light,
-      height: '50%',
-      margin: `0px 10px`
-    },
-    totalFilter: {
-      marginTop: 50,
-      borderBottom: `1px solid ${theme.palette.primary.light}`
-    },
-    header: {
-      marginTop: 30,
-      width: 'calc(100% - 18px)'
-    },
-    alignCenterRight: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'flex-end'
-    },
-    headerButtons: {
-      padding: '0px',
-      color: theme.palette.grey[500],
-      textTransform: 'none',
-      fontSize: '1rem'
+    '&::-webkit-scrollbar-thumb': {
+      background: theme.palette.text.secondary
     }
-  })
-);
+  },
+  [`& .${classes.divider}`]: {
+    backgroundColor: theme.palette.primary.light,
+    height: '50%',
+    margin: `0px 10px`
+  },
+  [`& .${classes.totalFilter}`]: {
+    marginTop: 50,
+    borderBottom: `1px solid ${theme.palette.primary.light}`
+  },
+  [`& .${classes.header}`]: {
+    marginTop: 30,
+    width: 'calc(100% - 18px)'
+  },
+  [`& .${classes.alignCenterRight}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end'
+  },
+  [`& .${classes.headerButtons}`]: {
+    padding: '0px',
+    color: theme.palette.grey[500],
+    textTransform: 'none',
+    fontSize: '1rem'
+  }
+}));
 
 interface WalletViewProps {
   openAddCoinForm?: boolean;
 }
 
 const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
-  const classes = useStyles();
   const theme = useTheme();
 
   const {
@@ -120,7 +130,7 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
 
   useEffect(() => {
     if (selectedWallet) {
-      setCurrentWalletId(selectedWallet.walletId);
+      setCurrentWalletId(selectedWallet._id);
     }
   }, [selectedWallet]);
 
@@ -132,8 +142,7 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
     activeStep
   } = useAddCoinContext();
 
-  const { deviceConnection, devicePacketVersion, beforeNetworkAction } =
-    useConnection();
+  const { deviceConnection, beforeNetworkAction } = useConnection();
 
   const handleAddCoinFormOpen = () => {
     if (beforeNetworkAction()) {
@@ -145,7 +154,7 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
 
   const handleAddCoinFormClose = (abort?: boolean) => {
     if (abort && deviceConnection) {
-      coinAdder.cancelAddCoin(deviceConnection, devicePacketVersion);
+      coinAdder.cancelAddCoin(deviceConnection);
     }
     Analytics.Instance.event(
       Analytics.Categories.ADD_COIN,
@@ -179,8 +188,10 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
     }
   }, [openAddCoinForm]);
 
+  const canAddMoreCoins = allCoins.length !== coinsPresent.length;
+
   return (
-    <Grid container>
+    <Root container>
       <AddCoinForm
         handleClose={handleAddCoinFormClose}
         coinsPresent={coinsPresent}
@@ -272,15 +283,32 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
             styleType="light"
           />
           <div className={classes.walletButtons}>
-            <Button
-              variant="text"
-              disableRipple
-              className={classes.button}
-              startIcon={<AddCircleIcon style={{ color: '#84633E' }} />}
-              onClick={handleAddCoinFormOpen}
-            >
-              ADD COIN
-            </Button>
+            {!canAddMoreCoins ? (
+              <Tooltip title="All coins are already added">
+                <span style={{ width: '100%', height: '100%' }}>
+                  <Button
+                    variant="text"
+                    disableRipple
+                    className={classes.button}
+                    startIcon={<AddCircleIcon style={{ color: '#84633E' }} />}
+                    onClick={handleAddCoinFormOpen}
+                    disabled={true}
+                  >
+                    ADD COIN
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="text"
+                disableRipple
+                className={classes.button}
+                startIcon={<AddCircleIcon style={{ color: '#84633E' }} />}
+                onClick={handleAddCoinFormOpen}
+              >
+                ADD COIN
+              </Button>
+            )}
           </div>
         </Grid>
       </Grid>
@@ -394,25 +422,25 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
           <Grid container className={classes.coinDataContainer}>
             {coinData
               .filter(coin => {
-                const coinObj = COINS[coin.coin];
+                const coinObj = COINS[coin.slug];
                 return (
                   (coinObj &&
                     coinObj.name
                       .toUpperCase()
                       .includes(search.toUpperCase())) ||
-                  coin.coin.toUpperCase().includes(search.toUpperCase())
+                  coin.slug.toUpperCase().includes(search.toUpperCase())
                 );
               })
               .map(coin => {
-                const coinObj = COINS[coin.coin];
+                const coinObj = COINS[coin.slug];
                 return (
                   <CurrentCoinContext.Provider
                     value={{ coinDetails: coin }}
-                    key={coin.coin}
+                    key={coin.slug}
                   >
                     {coinObj && coinObj.isEth ? (
                       <EthereumOneCoin
-                        initial={coin.coin.toUpperCase()}
+                        initial={coin.slug.toUpperCase()}
                         name={coinObj.name}
                         holding={coin.displayBalance}
                         value={coin.displayValue}
@@ -421,11 +449,12 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
                         isEmpty={coin.isEmpty}
                         deleteCoin={deleteCoinByXpub}
                         deleteHistory={deleteCoinHistory}
-                        walletId={selectedWallet.walletId}
+                        walletId={selectedWallet._id}
+                        sortIndex={sortIndex}
                       />
                     ) : (
                       <OneCoin
-                        initial={coin.coin.toUpperCase()}
+                        initial={coin.slug.toUpperCase()}
                         name={coinObj ? coinObj.name : ''}
                         holding={coin.displayBalance}
                         value={coin.displayValue}
@@ -434,7 +463,7 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
                         isEmpty={coin.isEmpty}
                         deleteCoin={deleteCoinByXpub}
                         deleteHistory={deleteCoinHistory}
-                        walletId={selectedWallet.walletId}
+                        walletId={selectedWallet._id}
                       />
                     )}
                   </CurrentCoinContext.Provider>
@@ -443,7 +472,7 @@ const WalletView: React.FC<WalletViewProps> = ({ openAddCoinForm }) => {
           </Grid>
         </Grid>
       </div>
-    </Grid>
+    </Root>
   );
 };
 
