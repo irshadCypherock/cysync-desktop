@@ -1,14 +1,13 @@
-import { bitcoin as bitcoinServer } from '@cypherock/server-wrapper';
-import Chip from '@material-ui/core/Chip';
-import Grid from '@material-ui/core/Grid';
+import { ETHCOINS } from '@cypherock/communication';
 import {
-  createStyles,
-  makeStyles,
-  Theme,
-  useTheme
-} from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import CopyIcon from '@material-ui/icons/FileCopyOutlined';
+  bitcoin as bitcoinServer,
+  eth as ethServer
+} from '@cypherock/server-wrapper';
+import CopyIcon from '@mui/icons-material/FileCopyOutlined';
+import Chip from '@mui/material/Chip';
+import Grid from '@mui/material/Grid';
+import { styled, useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import clsx from 'clsx';
 import { shell } from 'electron';
 import PropTypes from 'prop-types';
@@ -19,7 +18,7 @@ import IconButton from '../../../../designSystem/designComponents/buttons/custom
 import Icon from '../../../../designSystem/designComponents/icons/Icon';
 import CoinIcons from '../../../../designSystem/genericComponents/coinIcons';
 import ICONS from '../../../../designSystem/iconGroups/iconConstants';
-import { getLatestPriceForCoin } from '../../../../store/database';
+import { getLatestPriceForCoin, SentReceive } from '../../../../store/database';
 import {
   DisplayTransaction,
   DisplayTransactionPropTypes
@@ -28,73 +27,84 @@ import { useSnackbar } from '../../../../store/provider';
 import formatDisplayAmount from '../../../../utils/formatDisplayAmount';
 import logger from '../../../../utils/logger';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    container: {
-      padding: '0 25px',
-      minWidth: '300px'
-    },
-    dateTimeContainer: {
-      marginBottom: '20px'
-    },
-    dateText: {
-      fontWeight: 'bold'
-    },
-    timeText: {
-      fontWeight: 'lighter'
-    },
-    dataContainer: {
-      margin: '10px 0'
-    },
-    flex: {
-      display: 'flex',
-      alignItems: 'center'
-    },
-    flexCenter: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    button: {
-      background: '#71624C',
-      color: theme.palette.text.primary,
-      textTransform: 'none',
-      padding: '0.5rem 3.5rem',
-      marginBottom: '2rem',
-      marginTop: '20px',
-      '&:hover': {
-        background: theme.palette.secondary.dark
-      }
-    },
-    blue: {
-      color: theme.palette.info.main
-    },
-    red: {
-      color: theme.palette.error.main
-    },
-    orange: {
-      color: theme.palette.secondary.main
-    },
-    inputOutputContainer: {
-      maxHeight: '400px',
-      overflowY: 'auto',
-      '&::-webkit-scrollbar': {
-        width: '4px',
-        background: theme.palette.primary.light
-      },
-      '&::-webkit-scrollbar-thumb': {
-        background: theme.palette.text.secondary
-      }
+const PREFIX = 'TransactionDialog';
+
+const classes = {
+  dateTimeContainer: `${PREFIX}-dateTimeContainer`,
+  dateText: `${PREFIX}-dateText`,
+  timeText: `${PREFIX}-timeText`,
+  dataContainer: `${PREFIX}-dataContainer`,
+  flex: `${PREFIX}-flex`,
+  flexCenter: `${PREFIX}-flexCenter`,
+  button: `${PREFIX}-button`,
+  blue: `${PREFIX}-blue`,
+  red: `${PREFIX}-red`,
+  orange: `${PREFIX}-orange`,
+  inputOutputContainer: `${PREFIX}-inputOutputContainer`
+};
+
+const Root = styled('div')(({ theme }) => ({
+  padding: '0 25px',
+  minWidth: '300px',
+  [`& .${classes.dateTimeContainer}`]: {
+    marginBottom: '20px'
+  },
+  [`& .${classes.dateText}`]: {
+    fontWeight: 'bold'
+  },
+  [`& .${classes.timeText}`]: {
+    fontWeight: 'lighter'
+  },
+  [`& .${classes.dataContainer}`]: {
+    margin: '10px 0'
+  },
+  [`& .${classes.flex}`]: {
+    display: 'flex',
+    alignItems: 'center'
+  },
+  [`& .${classes.flexCenter}`]: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  [`& .${classes.button}`]: {
+    background: '#71624C',
+    color: theme.palette.text.primary,
+    textTransform: 'none',
+    padding: '0.5rem 3.5rem',
+    marginBottom: '2rem',
+    marginTop: '20px',
+    '&:hover': {
+      background: theme.palette.secondary.dark
     }
-  })
-);
+  },
+  [`& .${classes.blue}`]: {
+    color: theme.palette.info.main
+  },
+  [`& .${classes.red}`]: {
+    color: theme.palette.error.main
+  },
+  [`& .${classes.orange}`]: {
+    color: theme.palette.secondary.main
+  },
+  [`& .${classes.inputOutputContainer}`]: {
+    maxHeight: '400px',
+    overflowY: 'auto',
+    '&::-webkit-scrollbar': {
+      width: '4px',
+      background: theme.palette.primary.light
+    },
+    '&::-webkit-scrollbar-thumb': {
+      background: theme.palette.text.secondary
+    }
+  }
+}));
 
 interface TransactionDialogProps {
   txn: DisplayTransaction;
 }
 
 const TransactionDialog: React.FC<TransactionDialogProps> = props => {
-  const classes = useStyles();
   const theme = useTheme();
   const { txn } = props;
   const snackbar = useSnackbar();
@@ -103,15 +113,15 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
   const [ethCoinPrice, setEthCoinPrice] = useState(0);
 
   useEffect(() => {
-    if (txn && txn.coin) {
-      getLatestPriceForCoin(txn.coin.toLowerCase())
+    if (txn && txn.slug) {
+      getLatestPriceForCoin(txn.slug.toLowerCase())
         .then(price => {
           setCoinPrice(price);
         })
         .catch(logger.error);
 
-      if (txn.ethCoin) {
-        getLatestPriceForCoin(txn.ethCoin.toLowerCase())
+      if (txn.coin) {
+        getLatestPriceForCoin(txn.coin.toLowerCase())
           .then(price => {
             setEthCoinPrice(price);
           })
@@ -131,11 +141,11 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
   };
 
   const getFeeCoinName = () => {
-    if (txn.isErc20 && txn.ethCoin) {
-      return txn.ethCoin.toUpperCase();
+    if (txn.isErc20 && txn.coin) {
+      return txn.coin.toUpperCase();
     }
 
-    return txn.coin.toUpperCase();
+    return txn.slug.toUpperCase();
   };
 
   const getFeePrice = () => {
@@ -147,17 +157,35 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
   };
 
   const openTxn = () => {
-    shell.openExternal(
-      bitcoinServer.transaction.getOpenTxnLink({
-        coinType: txn.coin.toLowerCase(),
-        txHash: txn.hash
-      })
-    );
+    if (txn.coin) {
+      const coin = ETHCOINS[txn.coin];
+
+      if (!coin) {
+        logger.error('Invalid ETH COIN in txn: ' + txn.coin);
+        return;
+      }
+
+      shell.openExternal(
+        ethServer.transaction.getOpenTxnLink({
+          network: coin.network,
+          txHash: txn.hash,
+          isConfirmed: txn.confirmations && txn.confirmations > 0
+        })
+      );
+    } else {
+      shell.openExternal(
+        bitcoinServer.transaction.getOpenTxnLink({
+          coinType: txn.slug.toLowerCase(),
+          txHash: txn.hash,
+          isConfirmed: txn.confirmations && txn.confirmations > 0
+        })
+      );
+    }
   };
 
   const getResultIcon = () => {
     switch (txn.sentReceive) {
-      case 'SENT':
+      case SentReceive.SENT:
         return (
           <Icon
             viewBox="0 0 14 14"
@@ -165,7 +193,7 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
             color={theme.palette.secondary.main}
           />
         );
-      case 'RECEIVED':
+      case SentReceive.RECEIVED:
         return (
           <Icon
             viewBox="0 0 14 14"
@@ -181,7 +209,7 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
   if (!txn) return <></>;
 
   return (
-    <div className={classes.container}>
+    <Root>
       <div className={classes.dateTimeContainer}>
         <Typography className={classes.dateText} variant="body1">
           {txn.confirmed ? new Date(txn.confirmed).toLocaleDateString() : ''}
@@ -198,7 +226,9 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
         <Typography color="textSecondary">Action</Typography>
         <Typography
           className={
-            !(txn.sentReceive === 'SENT') ? classes.blue : classes.orange
+            !(txn.sentReceive === SentReceive.SENT)
+              ? classes.blue
+              : classes.orange
           }
           variant="body2"
         >
@@ -229,10 +259,10 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
         <div className={classes.flex}>
           <CoinIcons
             style={{ marginLeft: '0' }}
-            initial={txn.coin.toUpperCase()}
+            initial={txn.slug.toUpperCase()}
           />
           <Typography>
-            {`${txn.coin.toUpperCase()} ${formatCoins(
+            {`${txn.slug.toUpperCase()} ${formatCoins(
               txn.displayAmount
             )} ($${getPriceForCoin(txn.displayAmount)})`}
           </Typography>
@@ -241,7 +271,10 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
       <div className={classes.dataContainer}>
         <Typography color="textSecondary">Fees</Typography>
         <div className={classes.flex}>
-          <CoinIcons style={{ marginLeft: '0' }} initial={getFeeCoinName()} />
+          <CoinIcons
+            style={{ marginLeft: '0', marginRight: '10px' }}
+            initial={getFeeCoinName()}
+          />
           <Typography>{`${getFeeCoinName()} ${formatCoins(
             txn.displayFees
           )} ($${getFeePrice()})`}</Typography>
@@ -257,7 +290,7 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
             Sender
           </Typography>
           {(txn.inputs || [])
-            .sort((a, b) => a.index - b.index)
+            .sort((a, b) => a.indexNumber - b.indexNumber)
             .map((elem, i) => (
               <div key={elem.address} style={{ marginBottom: '10px' }}>
                 {elem.isMine && (
@@ -271,11 +304,17 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
                     {`${i + 1}.`}
                   </Typography>
                   <div>
-                    <Typography color={elem.isMine ? 'secondary' : undefined}>
+                    <Typography
+                      style={{ userSelect: 'text' }}
+                      color={elem.isMine ? 'secondary' : undefined}
+                    >
                       {elem.address}
                     </Typography>
-                    <Typography color={elem.isMine ? 'secondary' : undefined}>
-                      {`${txn.coin.toUpperCase()} ${formatCoins(
+                    <Typography
+                      style={{ userSelect: 'text' }}
+                      color={elem.isMine ? 'secondary' : undefined}
+                    >
+                      {`${txn.slug.toUpperCase()} ${formatCoins(
                         elem.displayValue
                       )}`}
                     </Typography>
@@ -290,7 +329,7 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
             Receiver
           </Typography>
           {(txn.outputs || [])
-            .sort((a, b) => a.index - b.index)
+            .sort((a, b) => a.indexNumber - b.indexNumber)
             .map((elem, i) => (
               <div key={elem.address} style={{ marginBottom: '10px' }}>
                 {elem.isMine && (
@@ -304,11 +343,17 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
                     {`${i + 1}.`}
                   </Typography>
                   <div>
-                    <Typography color={elem.isMine ? 'secondary' : undefined}>
+                    <Typography
+                      style={{ userSelect: 'text' }}
+                      color={elem.isMine ? 'secondary' : undefined}
+                    >
                       {elem.address}
                     </Typography>
-                    <Typography color={elem.isMine ? 'secondary' : undefined}>
-                      {`${txn.coin.toUpperCase()} ${formatCoins(
+                    <Typography
+                      style={{ userSelect: 'text' }}
+                      color={elem.isMine ? 'secondary' : undefined}
+                    >
+                      {`${txn.slug.toUpperCase()} ${formatCoins(
                         elem.displayValue
                       )}`}
                     </Typography>
@@ -334,14 +379,14 @@ const TransactionDialog: React.FC<TransactionDialogProps> = props => {
             <CopyIcon />
           </IconButton>
         </div>
-        <Typography>{txn.hash}</Typography>
+        <Typography style={{ userSelect: 'text' }}>{txn.hash}</Typography>
       </div>
       <div className={classes.flexCenter}>
         <Button onClick={openTxn} className={classes.button}>
           Open in Browser
         </Button>
       </div>
-    </div>
+    </Root>
   );
 };
 

@@ -1,52 +1,58 @@
-import Grid from '@material-ui/core/Grid';
-import { createStyles, makeStyles } from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
+import Grid from '@mui/material/Grid';
+import { styled } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import React from 'react';
 
 import CustomButton from '../../../../designSystem/designComponents/buttons/button';
-import { useConnection } from '../../../../store/provider';
+import {
+  DeviceConnectionState,
+  useConnection
+} from '../../../../store/provider';
 import Analytics from '../../../../utils/analytics';
 import logger from '../../../../utils/logger';
 
-const useStyles = makeStyles(() =>
-  createStyles({
-    container: {
-      padding: '20px'
-    },
-    errorButtons: {
-      display: 'flex',
-      justifyContent: 'space-around',
-      width: '100%'
-    }
-  })
-);
+const PREFIX = 'DeviceErrorPopup';
+
+const classes = {
+  container: `${PREFIX}-container`,
+  errorButtons: `${PREFIX}-errorButtons`
+};
+
+const Root = styled(Grid)(() => ({
+  [`& .${classes.container}`]: {
+    padding: '20px'
+  },
+  [`& .${classes.errorButtons}`]: {
+    display: 'flex',
+    justifyContent: 'space-around',
+    width: '100%'
+  }
+}));
 
 type Props = {
   handleClose: () => void;
-  state: number;
 };
 
-const Popup: React.FC<Props> = ({ handleClose, state }) => {
-  const classes = useStyles();
-  const { retryConnection } = useConnection();
+const Popup: React.FC<Props> = ({ handleClose }) => {
+  const { retryConnection, deviceConnectionState } = useConnection();
 
   const getHeading = () => {
-    switch (state) {
-      case 6:
+    switch (deviceConnectionState) {
+      case DeviceConnectionState.DEVICE_NOT_READY:
         return 'Looks like the device is not in the main menu.';
-      case 7:
-        return 'An unknown error occured while connecting the device.';
+      case DeviceConnectionState.UNKNOWN_ERROR:
+        return 'An unknown error occurred while connecting the device.';
       default:
-        return 'An unknown error occured while connecting the device.';
+        return 'An unknown error occurred while connecting the device.';
     }
   };
 
   const getQuestion = () => {
-    switch (state) {
-      case 6:
+    switch (deviceConnectionState) {
+      case DeviceConnectionState.DEVICE_NOT_READY:
         return 'Please bring the device to the main menu and try again.';
-      case 7:
+      case DeviceConnectionState.UNKNOWN_ERROR:
         return 'Please reconnect the device and try again';
       default:
         return 'Please reconnect the device and try again';
@@ -54,20 +60,20 @@ const Popup: React.FC<Props> = ({ handleClose, state }) => {
   };
 
   const getPositiveBtnText = () => {
-    switch (state) {
-      case 6:
+    switch (deviceConnectionState) {
+      case DeviceConnectionState.DEVICE_NOT_READY:
         return 'Try again';
-      case 7:
+      case DeviceConnectionState.UNKNOWN_ERROR:
       default:
         return 'Ok';
     }
   };
 
   const getNegativeBtnText = () => {
-    switch (state) {
-      case 6:
+    switch (deviceConnectionState) {
+      case DeviceConnectionState.DEVICE_NOT_READY:
         return 'Cancel';
-      case 7:
+      case DeviceConnectionState.UNKNOWN_ERROR:
       default:
         return undefined;
     }
@@ -78,8 +84,8 @@ const Popup: React.FC<Props> = ({ handleClose, state }) => {
   };
 
   const onPositiveClick = () => {
-    switch (state) {
-      case 6:
+    switch (deviceConnectionState) {
+      case DeviceConnectionState.DEVICE_NOT_READY:
         logger.info('Retry device connection by user');
         Analytics.Instance.event(
           Analytics.Categories.RETRY_DEVICE_CONNECTION,
@@ -88,14 +94,14 @@ const Popup: React.FC<Props> = ({ handleClose, state }) => {
         retryConnection();
         handleClose();
         break;
-      case 7:
+      case DeviceConnectionState.UNKNOWN_ERROR:
       default:
         handleClose();
     }
   };
 
   return (
-    <Grid className={classes.container} container>
+    <Root container>
       <Grid item xs={12}>
         <Typography
           variant="h4"
@@ -117,7 +123,6 @@ const Popup: React.FC<Props> = ({ handleClose, state }) => {
           <CustomButton
             onClick={onNegativeClick}
             variant="outlined"
-            color="default"
             style={{ margin: '1rem 0rem', textTransform: 'none' }}
           >
             {getNegativeBtnText()}
@@ -127,12 +132,11 @@ const Popup: React.FC<Props> = ({ handleClose, state }) => {
           {getPositiveBtnText()}
         </CustomButton>
       </div>
-    </Grid>
+    </Root>
   );
 };
 
 Popup.propTypes = {
-  state: PropTypes.number.isRequired,
   handleClose: PropTypes.func.isRequired
 };
 

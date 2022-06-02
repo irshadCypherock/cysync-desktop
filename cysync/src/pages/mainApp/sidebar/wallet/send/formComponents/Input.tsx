@@ -1,12 +1,9 @@
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  withStyles
-} from '@material-ui/core/styles';
-import TextField from '@material-ui/core/TextField';
-import Typography from '@material-ui/core/Typography';
-import AssignmentOutlinedIcon from '@material-ui/icons/AssignmentOutlined';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import { styled, Theme } from '@mui/material/styles';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import withStyles from '@mui/styles/withStyles';
+import BigNumber from 'bignumber.js';
 import PropTypes from 'prop-types';
 import React from 'react';
 
@@ -33,49 +30,56 @@ const ValidationTextField = withStyles((theme: Theme) => ({
   }
 }))(TextField);
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-      padding: '0.2rem 0.5rem'
-    },
-    label: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      width: '100%',
-      color: theme.palette.primary.light,
-      fontSize: '0.9rem',
-      marginBottom: '0.5rem'
-    },
-    labelText: {
-      display: 'block',
-      height: '100%'
-    },
-    input: {
-      width: '95%',
+const PREFIX = 'WalletSendInput';
+
+const classes = {
+  root: `${PREFIX}-root`,
+  label: `${PREFIX}-label`,
+  labelText: `${PREFIX}-labelText`,
+  input: `${PREFIX}-input`
+};
+
+const Root = styled('div')(({ theme }) => ({
+  [`&.${classes.root}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    padding: '0.2rem 0.5rem'
+  },
+  [`& .${classes.label}`]: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    color: theme.palette.primary.light,
+    fontSize: '0.9rem',
+    marginBottom: '0.5rem'
+  },
+  [`& .${classes.labelText}`]: {
+    display: 'block',
+    height: '100%'
+  },
+  [`& .${classes.input}`]: {
+    width: '95%',
+    background: 'rgba(0,0,0,0)',
+    border: `1px solid ${'#707070'}`,
+    color: theme.palette.info.light,
+    boxShadow: 'none',
+    padding: '1rem',
+    outline: 'none',
+    borderRadius: 5,
+    fontWeight: 400,
+    fontSize: '1rem',
+    '&:hover': {
       background: 'rgba(0,0,0,0)',
-      border: `1px solid ${'#707070'}`,
-      color: theme.palette.info.light,
-      boxShadow: 'none',
-      padding: '1rem',
-      outline: 'none',
-      borderRadius: 5,
-      fontWeight: 400,
-      fontSize: '1rem',
-      '&:hover': {
-        background: 'rgba(0,0,0,0)',
-        opacity: 0.9
-      },
-      '&:focus': {
-        background: 'rgba(0,0,0,0)'
-      }
+      opacity: 0.9
+    },
+    '&:focus': {
+      background: 'rgba(0,0,0,0)'
     }
-  })
-);
+  }
+}));
 
 type InputProps = {
   label?: string | undefined;
@@ -118,17 +122,15 @@ const Input: React.FC<InputProps> = ({
   customIcon,
   customIconStyle
 }) => {
-  const classes = useStyles();
-
   const onInput = (event: any) => {
     let isChanged = true;
     if (type === 'number') {
       if (min !== undefined) {
-        const minNum = Number(min);
-        const newVal = Number(event.target.value);
+        const minNum = new BigNumber(min);
+        const newVal = new BigNumber(event.target.value);
 
-        if (newVal < minNum) {
-          event.target.value = min;
+        if (newVal.lt(minNum)) {
+          event.target.value = minNum.toFixed();
         }
       }
 
@@ -144,6 +146,14 @@ const Input: React.FC<InputProps> = ({
 
         if (!isValid) {
           isChanged = false;
+        } else {
+          const wholeNumber = new BigNumber(newValArr[0]).toFixed();
+          if (newValArr.length > 1) {
+            event.target.value = `${wholeNumber}.${newValArr[1]}`;
+          } else {
+            if (newVal.length <= 0) event.target.value = '';
+            else event.target.value = wholeNumber;
+          }
         }
       }
     }
@@ -152,7 +162,7 @@ const Input: React.FC<InputProps> = ({
   };
 
   return (
-    <div className={classes.root}>
+    <Root className={classes.root}>
       <div className={classes.label}>
         {label && (
           <Typography color="textPrimary" className={classes.labelText}>
@@ -163,6 +173,7 @@ const Input: React.FC<InputProps> = ({
         {optionalElement}
       </div>
       <ValidationTextField
+        onWheel={(e: any) => e.target.blur()}
         disabled={disabled}
         id={id}
         name={name}
@@ -191,7 +202,7 @@ const Input: React.FC<InputProps> = ({
           inputProps: { min, max }
         }}
       />
-    </div>
+    </Root>
   );
 };
 

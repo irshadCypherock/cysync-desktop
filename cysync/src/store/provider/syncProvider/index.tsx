@@ -2,44 +2,37 @@ import {
   ALLCOINS,
   BtcCoinData,
   COINS,
-  Erc20CoinData,
-  ERC20TOKENS,
   EthCoinData
 } from '@cypherock/communication';
-import { Transaction, Xpub } from '@cypherock/database';
-import {
-  eth as ethServer,
-  pricing as pricingServer,
-  v2 as v2Server
-} from '@cypherock/server-wrapper';
-import {
-  formatEthAddress,
-  generateEthAddressFromXpub,
-  getEthAmountFromInput
-} from '@cypherock/wallet';
-import BigNumber from 'bignumber.js';
 import crypto from 'crypto';
 import PropTypes from 'prop-types';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import logger from '../../../utils/logger';
 import {
-  addressDb,
-  erc20tokenDb,
-  priceDb,
-  transactionDb,
-  xpubDb
+  Coin,
+  coinDb,
+  getTopBlock,
+  priceHistoryDb,
+  tokenDb,
+  transactionDb
 } from '../../database';
 import { useNetwork } from '../networkProvider';
 import { useNotifications } from '../notificationProvider';
 
+import { executeBatch, ExecutionResult } from './executors';
 import {
   BalanceSyncItem,
   HistorySyncItem,
+  LatestPriceSyncItem,
   PriceSyncItem,
   PriceSyncItemOptions,
-  SyncItem
+  SyncItem,
+  SyncProviderTypes,
+  SyncQueueItem
 } from './types';
+
+const BATCH_SIZE = 5;
 
 export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -48,27 +41,23 @@ export function sleep(ms: number) {
 export interface SyncContextInterface {
   isSyncing: boolean;
   isWaitingForConnection: boolean;
-  executingModule: string;
-  executingType: string;
   modulesInExecutionQueue: string[];
-  addCoinTask: (xpub: Xpub, options: { module: string }) => void;
+  addCoinTask: (coin: Coin, options: { module: string }) => void;
   addTokenTask: (
     walletId: string,
     tokenName: string,
     ethCoin: string
   ) => Promise<void>;
   reSync: () => void;
-  addBalanceSyncItemFromXpub: (
-    xpub: Xpub,
+  addBalanceSyncItemFromCoin: (
+    coin: Coin,
     options: { token?: string; module?: string; isRefresh?: boolean }
   ) => void;
-  addHistorySyncItemFromXpub: (
-    xpub: Xpub,
+  addHistorySyncItemFromCoin: (
+    coin: Coin,
     options: { module?: string; isRefresh?: boolean }
   ) => void;
 }
-
-type SyncQueueItem = HistorySyncItem | PriceSyncItem | BalanceSyncItem;
 
 export const SyncContext: React.Context<SyncContextInterface> =
   React.createContext<SyncContextInterface>({} as SyncContextInterface);
@@ -79,8 +68,6 @@ export const SyncProvider: React.FC = ({ children }) => {
     React.useState(false);
   const [isInitialSetupDone, setInitialSetupDone] = React.useState(false);
   const [isExecutingTask, setIsExecutingTask] = React.useState(false);
-  const [executingModule, setExecutingModule] = React.useState('');
-  const [executingType, setExecutingType] = React.useState('');
   const [modulesInExecutionQueue, setModuleInExecutionQueue] = React.useState<
     string[]
   >([]);
@@ -91,8 +78,13 @@ export const SyncProvider: React.FC = ({ children }) => {
   const maxRetries = 2;
 
   const { connected } = useNetwork();
+  const connectedRef = useRef<boolean | null>(connected);
 
-  const addToQueue = (item: SyncQueueItem) => {
+  useEffect(() => {
+    connectedRef.current = connected;
+  }, [connected]);
+
+  const addToQueue: SyncProviderTypes['addToQueue'] = item => {
     setSyncQueue(currentSyncQueue => {
       if (currentSyncQueue.findIndex(elem => elem.equals(item)) === -1) {
         // Adds the current item to ModuleExecutionQueue
@@ -109,611 +101,322 @@ export const SyncProvider: React.FC = ({ children }) => {
     });
   };
 
-  const addHistorySyncItemFromXpub = async (
-    xpub: Xpub,
-    { module = 'default', isRefresh = false }
-  ) => {
-    const coin = COINS[xpub.coin];
+  const addHistorySyncItemFromCoin: SyncProviderTypes['addHistorySyncItemFromCoin'] =
+    async (coin: Coin, { module = 'default', isRefresh = false }) => {
+      const coinData = COINS[coin.slug];
 
-    if (!coin) {
-      logger.warn('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin
-      });
-      logger.debug('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin,
-        xpub
-      });
-      return;
-    }
-
-    if (coin instanceof BtcCoinData) {
-      const walletName = crypto
-        .createHash('sha256')
-        .update(xpub.xpub)
-        .digest('base64');
-      const transactionHistory = await transactionDb.getAll(
-        {
-          walletId: xpub.walletId,
-          walletName,
-          coin: coin.abbr,
-          excludeFailed: true,
-          excludePending: true,
-          minConfirmations: 6
-        },
-        { sort: 'blockHeight', order: 'd', limit: 1 }
-      );
-      const newItem = new HistorySyncItem({
-        xpub: xpub.xpub,
-        walletName,
-        walletId: xpub.walletId,
-        coinType: coin.abbr,
-        isRefresh,
-        module,
-        afterBlock:
-          transactionHistory.length > 0 && transactionHistory[0].blockHeight > 0
-            ? transactionHistory[0].blockHeight
-            : undefined,
-        page: 1
-      });
-      addToQueue(newItem);
-
-      if (xpub.zpub) {
-        const zwalletName = crypto
-          .createHash('sha256')
-          .update(xpub.zpub)
-          .digest('base64');
-        const ztransactionHistory = await transactionDb.getAll(
+      if (!coinData) {
+        logger.warn('Xpub with invalid coin found', {
+          coin,
+          coinType: coin.slug
+        });
+        logger.debug(
+          'Xpub with invalid coin found addHistorySyncItemFromCoin',
           {
-            walletId: xpub.walletId,
-            walletName: zwalletName,
-            coin: coin.abbr,
+            coinData,
+            coinType: coin.slug,
+            coin
+          }
+        );
+        return;
+      }
+
+      if (coinData instanceof BtcCoinData) {
+        let topBlock;
+        const walletName = crypto
+          .createHash('sha256')
+          .update(coin.xpub)
+          .digest('base64');
+        topBlock = await getTopBlock(
+          {
+            walletId: coin.walletId,
+            walletName,
+            slug: coinData.abbr
+          },
+          {
             excludeFailed: true,
             excludePending: true,
             minConfirmations: 6
-          },
-          { sort: 'blockHeight', order: 'd', limit: 1 }
+          }
         );
-        const newZItem = new HistorySyncItem({
-          xpub: xpub.xpub,
-          zpub: xpub.zpub,
-          walletName: zwalletName,
-          walletId: xpub.walletId,
-          coinType: coin.abbr,
+        const newItem = new HistorySyncItem({
+          xpub: coin.xpub,
+          walletName,
+          walletId: coin.walletId,
+          coinType: coinData.abbr,
           isRefresh,
           module,
-          afterBlock:
-            ztransactionHistory.length > 0 &&
-            ztransactionHistory[0].blockHeight > 0
-              ? ztransactionHistory[0].blockHeight
-              : undefined,
+          afterBlock: topBlock,
           page: 1
         });
-        addToQueue(newZItem);
+        addToQueue(newItem);
+
+        if (coin.zpub) {
+          const zwalletName = crypto
+            .createHash('sha256')
+            .update(coin.zpub)
+            .digest('base64');
+          topBlock = await getTopBlock(
+            {
+              walletId: coin.walletId,
+              walletName: zwalletName,
+              slug: coinData.abbr
+            },
+            {
+              excludeFailed: true,
+              excludePending: true,
+              minConfirmations: 6
+            }
+          );
+          const newZItem = new HistorySyncItem({
+            xpub: coin.xpub,
+            zpub: coin.zpub,
+            walletName: zwalletName,
+            walletId: coin.walletId,
+            coinType: coinData.abbr,
+            isRefresh,
+            module,
+            afterBlock: topBlock,
+            page: 1
+          });
+          addToQueue(newZItem);
+        }
+      } else if (coinData instanceof EthCoinData) {
+        const newItem = new HistorySyncItem({
+          xpub: coin.xpub,
+          walletName: '',
+          walletId: coin.walletId,
+          coinType: coinData.abbr,
+          isRefresh,
+          module
+        });
+        addToQueue(newItem);
+      } else {
+        logger.warn('Xpub with invalid coin found', {
+          coinData,
+          coinType: coin.slug
+        });
+        logger.debug('Xpub with invalid coin found', {
+          coinData,
+          coinType: coin.slug,
+          coin
+        });
       }
-    } else if (coin instanceof EthCoinData) {
-      const newItem = new HistorySyncItem({
-        xpub: xpub.xpub,
-        walletName: '',
-        walletId: xpub.walletId,
-        coinType: coin.abbr,
-        isRefresh,
-        module
-      });
-      addToQueue(newItem);
-    } else {
-      logger.warn('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin
-      });
-      logger.debug('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin,
-        xpub
-      });
-    }
-  };
+    };
 
-  const addBalanceSyncItemFromXpub = (
-    xpub: Xpub,
-    {
-      token,
-      module = 'default',
-      isRefresh = false
-    }: {
-      token?: string;
-      module?: string;
-      isRefresh?: boolean;
-    }
-  ) => {
-    const coin = COINS[xpub.coin];
+  const addBalanceSyncItemFromCoin: SyncProviderTypes['addBalanceSyncItemFromCoin'] =
+    (coin: Coin, { token, module = 'default', isRefresh = false }) => {
+      const coinData = COINS[coin.slug];
 
-    if (!coin) {
-      logger.warn('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin
-      });
-      logger.debug('Xpub with invalid coin found', {
-        coin,
-        coinType: xpub.coin,
-        xpub
-      });
-      return;
-    }
+      if (!coinData) {
+        logger.warn('Xpub with invalid coin found', {
+          coinData,
+          coinType: coin.slug
+        });
+        logger.debug(
+          'Xpub with invalid coin found addBalanceSyncItemFromCoin',
+          {
+            coinData,
+            coinType: coin.slug,
+            coin
+          }
+        );
+        return;
+      }
 
-    // If a token txn, refresh eth as well as token balance
-    if (token) {
-      addToQueue(
-        new BalanceSyncItem({
-          xpub: xpub.xpub,
-          walletId: xpub.walletId,
-          coinType: token,
-          ethCoin: xpub.coin,
-          module,
-          isRefresh
-        })
-      );
-    }
+      // If a token txn, refresh eth as well as token balance
+      if (token) {
+        addToQueue(
+          new BalanceSyncItem({
+            xpub: coin.xpub,
+            walletId: coin.walletId,
+            coinType: token,
+            ethCoin: coin.slug,
+            module,
+            isRefresh
+          })
+        );
+      }
 
-    if (coin.isEth) {
-      addToQueue(
-        new BalanceSyncItem({
-          xpub: xpub.xpub,
-          zpub: xpub.zpub,
-          walletId: xpub.walletId,
-          coinType: xpub.coin,
-          module,
-          isRefresh
-        })
-      );
-    } else {
-      // If BTC fork, we get the balance from the txn api
-      addHistorySyncItemFromXpub(xpub, { module, isRefresh });
-    }
-  };
+      if (coinData.isEth) {
+        addToQueue(
+          new BalanceSyncItem({
+            xpub: coin.xpub,
+            zpub: coin.zpub,
+            walletId: coin.walletId,
+            coinType: coin.slug,
+            module,
+            isRefresh
+          })
+        );
+      } else {
+        // If BTC fork, we get the balance from the txn api
+        addHistorySyncItemFromCoin(coin, { module, isRefresh });
+      }
+    };
 
-  const addPriceSyncItemFromXpub = (
-    xpub: Xpub,
-    { module = 'default', isRefresh = false }
-  ) => {
-    const coinName = xpub.coin;
+  const addPriceSyncItemFromCoin: SyncProviderTypes['addPriceSyncItemFromCoin'] =
+    async (coin: Coin, { module = 'default', isRefresh = false }) => {
+      const coinName = coin.slug;
 
-    const coin = ALLCOINS[coinName];
+      const coinData = ALLCOINS[coinName];
 
-    if (!coin) {
-      logger.warn('Invalid coin in add price sync item', {
-        coinType: coinName
-      });
-      return;
-    }
+      if (!coin) {
+        logger.warn('Invalid coin in add price sync item', {
+          coinType: coinName
+        });
+        return;
+      }
 
-    if (!coin.isTest) {
-      for (const days of [7, 30, 365] as Array<PriceSyncItemOptions['days']>) {
-        const newItem = new PriceSyncItem({
-          days,
-          coinType: coin.abbr,
+      if (!coinData.isTest) {
+        for (const days of [7, 30, 365] as Array<
+          PriceSyncItemOptions['days']
+        >) {
+          const oldPrices = await priceHistoryDb.getOne({
+            slug: coinData.abbr,
+            interval: days
+          });
+          let addNew = true;
+
+          // Check if the prices and old enough and then only add to sync
+          if (oldPrices && oldPrices.data && oldPrices.data.length > 2) {
+            const oldestPriceEntry = oldPrices.data[oldPrices.data.length - 1];
+            const secondOldestPriceEntry =
+              oldPrices.data[oldPrices.data.length - 2];
+            const interval = oldestPriceEntry[0] - secondOldestPriceEntry[0];
+            const currentTime = new Date().getTime();
+            const nextLatestTime = oldestPriceEntry[0] + interval;
+
+            if (nextLatestTime > currentTime) {
+              addNew = false;
+            }
+          }
+
+          if (addNew) {
+            const newItem = new PriceSyncItem({
+              days,
+              coinType: coinData.abbr,
+              isRefresh,
+              module
+            });
+            addToQueue(newItem);
+          }
+        }
+      }
+    };
+
+  const addLatestPriceSyncItemFromCoin: SyncProviderTypes['addLatestPriceSyncItemFromCoin'] =
+    (coin: Coin, { module = 'default', isRefresh = false }) => {
+      const coinName = coin.slug;
+
+      const coinData = ALLCOINS[coinName];
+
+      if (!coin) {
+        logger.warn('Invalid coin in add latest price sync item', {
+          coinType: coinName
+        });
+        return;
+      }
+
+      if (!coinData.isTest) {
+        const newItem = new LatestPriceSyncItem({
+          coinType: coinData.abbr,
           isRefresh,
           module
         });
         addToQueue(newItem);
       }
-    }
-  };
+    };
 
-  const executeHistoryItem = async (
-    item: HistorySyncItem
-  ): Promise<
-    undefined | { after: number | undefined; page: number | undefined }
-  > => {
-    const coin = COINS[item.coinType];
-    if (!coin) {
-      logger.warn('Invalid coin in sync queue', {
-        coinType: item.coinType
-      });
-      return undefined;
-    }
+  const updateAllExecutedItems = async (
+    executionResults: ExecutionResult[]
+  ) => {
+    const allCompletedModulesSet: Set<string> = new Set<string>();
+    const syncQueueUpdateOperations: Array<{
+      item: SyncQueueItem;
+      operation: 'remove' | 'update';
+      updatedItem?: SyncQueueItem;
+    }> = [];
 
-    if (coin instanceof BtcCoinData) {
-      const response = await v2Server.getTransaction(
-        {
-          xpub: item.zpub ? item.zpub : item.xpub,
-          coinType: item.coinType,
-          from: item.afterBlock,
-          page: item.page || 1,
-          limit: 100
-        },
-        item.isRefresh
-      );
+    for (const result of executionResults) {
+      const { item } = result;
 
-      let balance = new BigNumber(response.data.balance);
-      const unconfirmedBalance = new BigNumber(
-        response.data.unconfirmedBalance
-      );
-      const xpub = await xpubDb.getByWalletIdandCoin(
-        item.walletId,
-        item.coinType
-      );
+      let removeFromQueue = true;
+      let updateQueueItem = false;
+      const updatedItem = item.clone();
 
-      if (!xpub) {
-        logger.warn('Cannot find xpub while fetching txn', { item });
-      } else {
-        if (item.zpub) {
-          await xpubDb.updateZpubBalance(item.xpub, item.coinType, {
-            balance: balance.toString(),
-            unconfirmedBalance: unconfirmedBalance.toString()
-          });
-          if (xpub.xpubBalance) {
-            if (xpub.xpubBalance.balance) {
-              balance = balance.plus(xpub.xpubBalance.balance);
-            }
-            if (xpub.xpubBalance.unconfirmedBalance) {
-              balance = balance.plus(xpub.xpubBalance.unconfirmedBalance);
-            }
-          }
+      if (result.isFailed) {
+        if (item.retries < maxRetries && result.canRetry) {
+          logger.warn('Sync: Error, retrying...', { item });
+          updatedItem.retries += 1;
+
+          updateQueueItem = true;
+          removeFromQueue = false;
         } else {
-          await xpubDb.updateBalance(item.xpub, item.coinType, {
-            balance: balance.toString(),
-            unconfirmedBalance: unconfirmedBalance.toString()
-          });
-          if (xpub.zpubBalance) {
-            if (xpub.zpubBalance.balance) {
-              balance = balance.plus(xpub.zpubBalance.balance);
-            }
-            if (xpub.zpubBalance.unconfirmedBalance) {
-              balance = balance.plus(xpub.zpubBalance.unconfirmedBalance);
-            }
-          }
+          logger.error('Sync: Error, max retries exceeded', { item });
+          logger.error(result.error);
         }
+      } else if (
+        item instanceof HistorySyncItem &&
+        result.processResult !== undefined
+      ) {
+        removeFromQueue = false;
+        updateQueueItem = true;
+        (updatedItem as HistorySyncItem).page = result.processResult.page;
+        (updatedItem as HistorySyncItem).afterBlock =
+          result.processResult.after;
+      }
 
-        await xpubDb.updateTotalBalance(item.xpub, item.coinType, {
-          balance: balance.toString(),
-          unconfirmedBalance: unconfirmedBalance.toString()
+      if (removeFromQueue) {
+        syncQueueUpdateOperations.push({ operation: 'remove', item });
+        // Remove module from ModuleInExecutionQueue
+        const { module } = item as SyncItem;
+        allCompletedModulesSet.add(module);
+      }
+
+      if (updateQueueItem) {
+        syncQueueUpdateOperations.push({
+          operation: 'update',
+          item,
+          updatedItem
         });
-      }
-
-      if (response.data.transactions) {
-        for (const txn of response.data.transactions) {
-          try {
-            await transactionDb.insertFromBlockbookTxn({
-              txn,
-              xpub: item.xpub,
-              addresses: response.data.tokens
-                ? response.data.tokens.map((elem: any) => elem.name)
-                : [],
-              walletId: item.walletId,
-              coinType: item.coinType,
-              addressDB: addressDb,
-              walletName: item.walletName
-            });
-            // No need to retry if the inserting fails because it'll produce the same error.
-          } catch (error) {
-            logger.error('Error while inserting transaction in DB');
-            logger.error(error);
-          }
-        }
-
-        // If there are more txs, return the last block height
-        if (
-          response.data.page &&
-          response.data.totalPages &&
-          response.data.totalPages > response.data.page
-        ) {
-          return {
-            after: item.afterBlock ? item.afterBlock : undefined,
-            page: response.data.page + 1
-          };
-        }
-      }
-    } else if (coin instanceof EthCoinData) {
-      const history: Transaction[] = [];
-      const erc20Tokens = new Set<string>();
-
-      const address = generateEthAddressFromXpub(item.xpub);
-      const rawHistory = (
-        await ethServer.transaction.getHistory(
-          { address, network: coin.network },
-          item.isRefresh
-        )
-      ).data.result;
-
-      const erc20history = (
-        await ethServer.transaction.getContractHistory(
-          {
-            address,
-            network: coin.network
-          },
-          item.isRefresh
-        )
-      ).data.result;
-
-      for (const ele of rawHistory) {
-        const fees = new BigNumber(ele.gasPrice || 0).multipliedBy(
-          new BigNumber(ele.gasUsed || 0)
-        );
-
-        const fromAddr = formatEthAddress(ele.from);
-        const toAddr = formatEthAddress(ele.to);
-
-        const txn: Transaction = {
-          hash: ele.hash,
-          amount: String(ele.value),
-          fees: fees.toString(),
-          total: new BigNumber(ele.value).plus(fees).toString(),
-          confirmations: ele.confirmations || 0,
-          walletId: item.walletId,
-          coin: item.coinType,
-          // 2 for failed, 1 for pass
-          status: ele.isError === '0' ? 1 : 2,
-          sentReceive: address === fromAddr ? 'SENT' : 'RECEIVED',
-          confirmed: new Date(parseInt(ele.timeStamp, 10) * 1000),
-          blockHeight: ele.blockNumber,
-          ethCoin: item.coinType,
-          inputs: [
-            {
-              address: fromAddr,
-              value: String(ele.value),
-              index: 0,
-              isMine: address === fromAddr
-            }
-          ],
-          outputs: [
-            {
-              address: toAddr,
-              value: String(ele.value),
-              index: 0,
-              isMine: address === toAddr
-            }
-          ]
-        };
-
-        // If it is a failed transaction, then check if it is a token transaction.
-        if (txn.status === 2) {
-          let amount = '0';
-          const token = Object.values(ERC20TOKENS).find(
-            t => t.address === ele.to.toLowerCase()
-          );
-
-          if (token) {
-            if (ele.input) {
-              amount = String(getEthAmountFromInput(ele.input));
-            }
-
-            txn.coin = token.abbr;
-            txn.amount = amount;
-
-            // Even if the token transaction failed, the transaction fee is still deducted.
-            if (txn.sentReceive === 'SENT') {
-              history.push({
-                hash: ele.hash as string,
-                amount: fees.toString(),
-                fees: '0',
-                total: fees.toString(),
-                confirmations: (ele.confirmations as number) || 0,
-                walletId: item.walletId,
-                coin: item.coinType,
-                status: 1,
-                sentReceive: 'FEES',
-                confirmed: new Date(parseInt(ele.timeStamp, 10) * 1000),
-                blockHeight: ele.blockNumber as number,
-                ethCoin: item.coinType
-              });
-            }
-          }
-        }
-
-        history.push(txn);
-      }
-
-      for (const ele of erc20history) {
-        const tokenObj = ERC20TOKENS[ele.tokenSymbol.toLowerCase()];
-        const fromAddr = formatEthAddress(ele.from);
-        const toAddr = formatEthAddress(ele.to);
-
-        // Only add if it exists in our coin list
-        if (
-          tokenObj &&
-          ele.contractAddress &&
-          ele.contractAddress.toLowerCase() === tokenObj.address.toLowerCase()
-        ) {
-          const fees = new BigNumber(ele.gasPrice || 0).multipliedBy(
-            new BigNumber(ele.gasUsed || 0)
-          );
-
-          erc20Tokens.add(ele.tokenSymbol.toLowerCase());
-          const txn: Transaction = {
-            hash: ele.hash as string,
-            amount: String(ele.value),
-            fees: fees.toString(),
-            total: String(ele.value),
-            confirmations: (ele.confirmations as number) || 0,
-            walletId: item.walletId,
-            coin: (ele.tokenSymbol as string).toLowerCase(),
-            status: 1,
-            sentReceive: address === fromAddr ? 'SENT' : 'RECEIVED',
-            confirmed: new Date(parseInt(ele.timeStamp, 10) * 1000),
-            blockHeight: ele.blockNumber as number,
-            ethCoin: item.coinType,
-            inputs: [
-              {
-                address: fromAddr,
-                value: String(ele.value),
-                index: 0,
-                isMine: address === fromAddr
-              }
-            ],
-            outputs: [
-              {
-                address: ele.to,
-                value: String(ele.value),
-                index: 0,
-                isMine: address === toAddr
-              }
-            ]
-          };
-
-          history.push(txn);
-        }
-
-        // When a token is sent, the transaction fee is deducted from ETH
-        if (address === fromAddr) {
-          const amount = new BigNumber(ele.gasPrice || 0).multipliedBy(
-            new BigNumber(ele.gasUsed || 0)
-          );
-          history.push({
-            hash: ele.hash as string,
-            amount: amount.toString(),
-            fees: '0',
-            total: amount.toString(),
-            confirmations: (ele.confirmations as number) || 0,
-            walletId: item.walletId,
-            coin: item.coinType,
-            status: 1,
-            sentReceive: 'FEES',
-            confirmed: new Date(parseInt(ele.timeStamp, 10) * 1000),
-            blockHeight: ele.blockNumber as number,
-            ethCoin: item.coinType
-          });
-        }
-      }
-
-      for (const txn of history) {
-        try {
-          await transactionDb.insert(txn);
-          // No need to retry if the inserting fails because it'll produce the same error.
-        } catch (error) {
-          logger.error('Error while inserting transaction in DB');
-          logger.error(error);
-        }
-      }
-
-      for (const tokenName of erc20Tokens) {
-        const token = await erc20tokenDb.getOne({
-          walletId: item.walletId,
-          coin: tokenName.toLowerCase(),
-          ethCoin: item.coinType
-        });
-        if (!token) {
-          erc20tokenDb.insert({
-            walletId: item.walletId,
-            coin: tokenName.toLowerCase(),
-            ethCoin: item.coinType,
-            balance: '0'
-          });
-          addToQueue(
-            new BalanceSyncItem({
-              xpub: item.xpub,
-              walletId: item.walletId,
-              coinType: tokenName,
-              ethCoin: item.coinType,
-              module: item.module,
-              isRefresh: true
-            })
-          );
-          addPriceSyncItemFromXpub({ coin: tokenName } as Xpub, {
-            isRefresh: true,
-            module: item.module
-          });
-        }
       }
     }
 
-    return undefined;
-  };
+    setSyncQueue(currentSyncQueue => {
+      const duplicate = [...currentSyncQueue];
 
-  const executePriceItem = async (item: PriceSyncItem) => {
-    const res = await pricingServer.get({
-      coin: item.coinType,
-      days: item.days
+      for (const operation of syncQueueUpdateOperations) {
+        const index = duplicate.findIndex(elem => elem.equals(operation.item));
+        if (index === -1) {
+          logger.warn('Cannot find item index while updating sync queue');
+          continue;
+        }
+
+        if (operation.operation === 'remove') {
+          duplicate.splice(index, 1);
+        } else if (operation.operation === 'update' && operation.updatedItem) {
+          duplicate[index] = operation.updatedItem;
+        }
+      }
+
+      const allCompletedModules: string[] = [];
+      for (const [module] of allCompletedModulesSet.entries()) {
+        if (duplicate.findIndex(elem => elem.module === module) === -1) {
+          allCompletedModules.push(module);
+        }
+      }
+
+      setModuleInExecutionQueue(currentModules => {
+        const duplicateModules = [...currentModules];
+
+        return duplicateModules.filter(
+          elem => !allCompletedModules.includes(elem)
+        );
+      });
+
+      return duplicate;
     });
-    await priceDb.insert(item.coinType, item.days, res.data.data.entries);
-  };
-
-  const executeBalanceItem = async (item: BalanceSyncItem) => {
-    const coin = ALLCOINS[item.coinType];
-    if (!coin) {
-      logger.warn('Invalid coin in sync queue', {
-        coinType: item.coinType
-      });
-      return;
-    }
-
-    if (coin instanceof BtcCoinData) {
-      logger.warn('Still using BTC fork balance API');
-      let balance = new BigNumber(0);
-      let unconfirmedBalance = new BigNumber(0);
-
-      const balanceReq = await v2Server.getBalance({
-        xpub: item.xpub,
-        coinType: coin.abbr
-      });
-
-      balance = balance.plus(balanceReq.data.balance);
-      unconfirmedBalance = unconfirmedBalance.plus(
-        balanceReq.data.unconfirmedBalance
-      );
-
-      if (item.zpub) {
-        const zBalanceReq = await v2Server.getBalance({
-          xpub: item.zpub,
-          coinType: coin.abbr
-        });
-        balance = balance.plus(zBalanceReq.data.balance);
-        unconfirmedBalance = unconfirmedBalance.plus(
-          zBalanceReq.data.unconfirmedBalance
-        );
-      }
-
-      const bal = {
-        balance: balance.toString(),
-        unconfirmedBalance: unconfirmedBalance.toString()
-      };
-
-      await xpubDb.updateTotalBalance(item.xpub, item.coinType, bal);
-    } else if (coin instanceof EthCoinData) {
-      const address = generateEthAddressFromXpub(item.xpub);
-      const balanceRes = await ethServer.wallet.getBalance(
-        {
-          address,
-          network: coin.network
-        },
-        item.isRefresh
-      );
-      const balance = new BigNumber(balanceRes.data);
-
-      await xpubDb.updateTotalBalance(item.xpub, item.coinType, {
-        balance: balance.toString(),
-        unconfirmedBalance: '0'
-      });
-    } else if (coin instanceof Erc20CoinData) {
-      const address = generateEthAddressFromXpub(item.xpub);
-      if (item.ethCoin) {
-        const ethCoin = COINS[item.ethCoin];
-        if (ethCoin instanceof EthCoinData) {
-          const erc20address = coin.address;
-          const balanceRes = await ethServer.wallet.getBalance(
-            {
-              address,
-              network: ethCoin.network,
-              contractAddress: erc20address
-            },
-            item.isRefresh
-          );
-          const balance = new BigNumber(balanceRes.data);
-          await erc20tokenDb.updateBalance(
-            item.coinType,
-            item.walletId,
-            balance.toString()
-          );
-        } else {
-          logger.warn('Invalid type of ethCoin specified', { ethCoin });
-        }
-      } else {
-        logger.warn('Token being added to invalid ethereum coin type', {
-          item
-        });
-      }
-    }
   };
 
   const executeNextInQueue = async () => {
@@ -724,97 +427,27 @@ export const SyncProvider: React.FC = ({ children }) => {
       return;
     }
 
-    let item: SyncQueueItem | undefined;
+    let items: SyncQueueItem[] = [];
     if (syncQueue.length > 0) {
-      [item] = syncQueue;
+      items = syncQueue.slice(0, BATCH_SIZE);
     }
 
-    if (item) {
-      let isError = false;
-      let isRetry = false;
-      // This is for HistorySyncItem pagination
-      let nextItemBefore:
-        | undefined
-        | { after: number | undefined; page: number | undefined };
+    if (items.length <= 0) {
+      await sleep(queueExecuteInterval);
+      setIsExecutingTask(false);
+      return;
+    }
 
-      if (item.module !== executingModule) {
-        setExecutingModule(item.module);
-      }
+    try {
+      const executionResult = await executeBatch(items, {
+        addToQueue,
+        addPriceSyncItemFromCoin,
+        addLatestPriceSyncItemFromCoin
+      });
 
-      if (item.type !== executingType) {
-        setExecutingType(item.type);
-      }
-
-      try {
-        if (item instanceof HistorySyncItem) {
-          nextItemBefore = await executeHistoryItem(item);
-        } else if (item instanceof BalanceSyncItem) {
-          await executeBalanceItem(item);
-        } else {
-          await executePriceItem(item);
-        }
-      } catch (error) {
-        isError = true;
-        // Retry logic here
-        if (item.retries < maxRetries) {
-          logger.warn('Sync: Error, retrying...', { item });
-          item.retries += 1;
-          isRetry = true;
-        } else {
-          logger.error('Sync: Error, max retries exceeded', { item });
-          logger.error(error);
-        }
-      } finally {
-        if (item !== undefined) {
-          // Using callback for preventing race condition
-          setSyncQueue(currentSyncQueue => {
-            const duplicate = [...currentSyncQueue];
-            const index = duplicate.findIndex(elem =>
-              elem.equals(item as SyncItem)
-            );
-
-            if (index !== -1) {
-              // If there is error and retries are left, just update the retry
-              if (isError && isRetry) {
-                duplicate[index].retries = (item as SyncItem).retries;
-                // If there a next page for HistoryItem, just update the beforeBlock
-              } else if (
-                duplicate[index] instanceof HistorySyncItem &&
-                nextItemBefore !== undefined
-              ) {
-                (duplicate[index] as HistorySyncItem).page =
-                  nextItemBefore.page;
-                (duplicate[index] as HistorySyncItem).afterBlock =
-                  nextItemBefore.after;
-                // Else the item has been completed (or max retries exceeded)
-              } else {
-                duplicate.splice(index, 1);
-
-                // Remove module from ModuleInExecutionQueue
-                const { module } = item as SyncItem;
-                if (
-                  duplicate.findIndex(elem => elem.module === module) === -1
-                ) {
-                  setModuleInExecutionQueue(currentModules => {
-                    const duplicateModules = [...currentModules];
-                    const i = duplicateModules.findIndex(
-                      elem => elem === module
-                    );
-
-                    if (i !== -1) {
-                      duplicateModules.splice(i, 1);
-                    }
-
-                    return duplicateModules;
-                  });
-                }
-              }
-            }
-
-            return duplicate;
-          });
-        }
-      }
+      updateAllExecutedItems(executionResult);
+    } catch (error) {
+      logger.error('Failed to execute batch, hence failing all tasks');
     }
 
     await sleep(queueExecuteInterval);
@@ -825,9 +458,9 @@ export const SyncProvider: React.FC = ({ children }) => {
     isRefresh = false,
     module = 'default'
   }) => {
-    const allXpubs = await xpubDb.getAll();
+    const allXpubs = await coinDb.getAll();
     for (const xpub of allXpubs) {
-      addHistorySyncItemFromXpub(xpub, { isRefresh, module });
+      addHistorySyncItemFromCoin(xpub, { isRefresh, module });
     }
   };
 
@@ -835,20 +468,20 @@ export const SyncProvider: React.FC = ({ children }) => {
     isRefresh = false,
     module = 'default'
   }) => {
-    const allXpubs = await xpubDb.getAll();
-    const tokens = await erc20tokenDb.getAll();
+    const coins = await coinDb.getAll();
+    const tokens = await tokenDb.getAll();
 
-    for (const xpub of allXpubs) {
-      addBalanceSyncItemFromXpub(xpub, { isRefresh, module });
+    for (const coin of coins) {
+      addBalanceSyncItemFromCoin(coin, { isRefresh, module });
     }
 
     for (const token of tokens) {
-      const ethXpub = await xpubDb.getByWalletIdandCoin(
-        token.walletId,
-        token.ethCoin
-      );
+      const ethXpub = await coinDb.getOne({
+        walletId: token.walletId,
+        slug: token.coin
+      });
       if (!ethXpub) {
-        logger.warn('EthCoin does not exist', { ethCoin: token.ethCoin });
+        logger.warn('EthCoin does not exist', { ethCoin: token.coin });
         return;
       }
       addToQueue(
@@ -856,7 +489,7 @@ export const SyncProvider: React.FC = ({ children }) => {
           xpub: ethXpub.xpub,
           walletId: token.walletId,
           coinType: token.coin,
-          ethCoin: token.ethCoin,
+          ethCoin: token.coin,
           module,
           isRefresh
         })
@@ -865,25 +498,45 @@ export const SyncProvider: React.FC = ({ children }) => {
   };
 
   const addPriceRefresh = async ({ isRefresh = false, module = 'default' }) => {
-    const allXpubs = await xpubDb.getAll();
-    const tokens = await erc20tokenDb.getAll();
+    const allXpubs = await coinDb.getAll();
+    const tokens = await tokenDb.getAll();
 
     for (const xpub of allXpubs) {
-      addPriceSyncItemFromXpub(xpub, { isRefresh, module });
+      addPriceSyncItemFromCoin(xpub, { isRefresh, module });
     }
 
     for (const token of tokens) {
-      addPriceSyncItemFromXpub({ coin: token.coin } as Xpub, {
+      addPriceSyncItemFromCoin({ slug: token.coin } as Coin, {
         isRefresh,
         module
       });
     }
   };
 
-  const addCoinTask = (xpub: Xpub, { module = 'default' }) => {
-    addBalanceSyncItemFromXpub(xpub, { module, isRefresh: true });
-    addHistorySyncItemFromXpub(xpub, { module, isRefresh: true });
-    addPriceSyncItemFromXpub(xpub, { module, isRefresh: true });
+  const addLatestPriceRefresh = async ({
+    isRefresh = false,
+    module = 'default'
+  }) => {
+    const allXpubs = await coinDb.getAll();
+    const tokens = await tokenDb.getAll();
+
+    for (const xpub of allXpubs) {
+      addLatestPriceSyncItemFromCoin(xpub, { isRefresh, module });
+    }
+
+    for (const token of tokens) {
+      addLatestPriceSyncItemFromCoin({ slug: token.coin } as Coin, {
+        isRefresh,
+        module
+      });
+    }
+  };
+
+  const addCoinTask = (coin: Coin, { module = 'default' }) => {
+    addBalanceSyncItemFromCoin(coin, { module, isRefresh: true });
+    addHistorySyncItemFromCoin(coin, { module, isRefresh: true });
+    addPriceSyncItemFromCoin(coin, { module, isRefresh: true });
+    addLatestPriceSyncItemFromCoin(coin, { module, isRefresh: true });
   };
 
   const addTokenTask = async (
@@ -891,7 +544,7 @@ export const SyncProvider: React.FC = ({ children }) => {
     tokenName: string,
     ethCoin: string
   ) => {
-    const ethXpub = await xpubDb.getByWalletIdandCoin(walletId, ethCoin);
+    const ethXpub = await coinDb.getOne({ walletId, slug: ethCoin });
     if (!ethXpub) {
       logger.warn('EthCoin does not exist', { walletId, ethCoin });
       return;
@@ -906,7 +559,11 @@ export const SyncProvider: React.FC = ({ children }) => {
         isRefresh: true
       })
     );
-    addPriceSyncItemFromXpub({ coin: tokenName } as Xpub, {
+    addPriceSyncItemFromCoin({ slug: tokenName } as Coin, {
+      isRefresh: true,
+      module: 'default'
+    });
+    addLatestPriceSyncItemFromCoin({ slug: tokenName } as Coin, {
       isRefresh: true,
       module: 'default'
     });
@@ -918,6 +575,7 @@ export const SyncProvider: React.FC = ({ children }) => {
       await addBalanceRefresh({ isRefresh: true });
       await addHistoryRefresh({ isRefresh: true });
       await addPriceRefresh({ isRefresh: true });
+      await addLatestPriceRefresh({ isRefresh: true });
     }
 
     setInitialSetupDone(true);
@@ -926,37 +584,71 @@ export const SyncProvider: React.FC = ({ children }) => {
   const reSync = async () => {
     logger.info('Sync: ReSyncing items');
 
-    await addBalanceRefresh({ isRefresh: true });
-    await addHistoryRefresh({ isRefresh: true });
-    await addPriceRefresh({ isRefresh: true });
-    await notifications.getLatest();
+    await addBalanceRefresh({});
+    await addHistoryRefresh({});
+    await addPriceRefresh({});
+    await addLatestPriceRefresh({});
+    await notifications.updateLatest();
   };
 
-  let interval: NodeJS.Timeout | undefined;
+  const intervals = useRef<NodeJS.Timeout[]>([]);
   useEffect(() => {
     transactionDb.failExpiredTxn();
     setupInitial();
 
-    // Refresh after 15 min
-    interval = setInterval(async () => {
-      if (connected && process.env.IS_PRODUCTION === 'true') {
-        logger.info('Sync: Refresh triggered');
-        try {
-          addPriceRefresh({ isRefresh: true, module: 'refresh' });
-          await notifications.getLatest();
-          await transactionDb.failExpiredTxn();
-        } catch (error) {
-          logger.error('Sync: Error in refresh');
-          logger.error(error);
-        }
-      }
-    }, 1000 * 60 * 15);
+    // Refresh after 60 mins
+    if (
+      intervals.current.length === 0 &&
+      process.env.IS_PRODUCTION === 'true'
+    ) {
+      intervals.current.push(
+        setInterval(async () => {
+          logger.info('Sync: Refresh triggered');
+          // Needs refactor
+          addPriceRefresh({ isRefresh: true, module: 'refresh' })
+            .then(() => {
+              logger.info('Sync: Price Refresh completed');
+            })
+            .catch(err => {
+              logger.error('Sync: Price Refresh failed', err);
+            });
+          if (connectedRef) {
+            notifications
+              .updateLatest()
+              .then(() => {
+                logger.info('Sync: Notification Refresh completed');
+              })
+              .catch(err => {
+                logger.error('Sync: Notification Refresh failed', err);
+              });
+          }
+          transactionDb
+            .failExpiredTxn()
+            .then(() => {
+              logger.info('Sync: Transaction Refresh completed');
+            })
+            .catch(err => {
+              logger.error('Sync: Transaction Refresh failed', err);
+            });
+        }, 1000 * 60 * 60)
+      );
 
+      // Refresh after 15 mins
+      intervals.current.push(
+        setInterval(async () => {
+          logger.info('Sync: Refresh triggered for latest price');
+          try {
+            addLatestPriceRefresh({ isRefresh: true, module: 'refresh' });
+          } catch (error) {
+            logger.error('Sync: Error in refreshing latest price');
+            logger.error(error);
+          }
+        }, 1000 * 60 * 15)
+      );
+    }
     return () => {
-      if (interval) {
-        clearInterval(interval);
-        interval = undefined;
-      }
+      intervals.current.forEach(interval => clearInterval(interval));
+      intervals.current = [] as NodeJS.Timeout[];
     };
   }, []);
 
@@ -989,14 +681,12 @@ export const SyncProvider: React.FC = ({ children }) => {
       value={{
         isSyncing,
         isWaitingForConnection,
-        executingType,
-        executingModule,
         modulesInExecutionQueue,
         addCoinTask,
         addTokenTask,
         reSync,
-        addBalanceSyncItemFromXpub,
-        addHistorySyncItemFromXpub
+        addBalanceSyncItemFromCoin,
+        addHistorySyncItemFromCoin
       }}
     >
       {children}

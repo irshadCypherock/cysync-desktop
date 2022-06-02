@@ -1,4 +1,4 @@
-import { Xpub } from '@cypherock/database';
+import { Coin } from '@cypherock/database';
 import PropTypes from 'prop-types';
 
 export interface OneCoinProps {
@@ -10,7 +10,7 @@ export interface OneCoinProps {
   decimal: number;
   isEmpty: boolean;
   deleteCoin: (xpub: string, coin: string, walletId: string) => Promise<void>;
-  deleteHistory: (xpub: Xpub) => Promise<void>;
+  deleteHistory: (coin: Coin) => Promise<void>;
   walletId: string;
 }
 
@@ -25,4 +25,13 @@ export const OneCoinPropTypes = {
   deleteCoin: PropTypes.func.isRequired,
   deleteHistory: PropTypes.func.isRequired,
   walletId: PropTypes.string.isRequired
+};
+
+export interface EthereumOneCoinProps extends OneCoinProps {
+  sortIndex: number;
+}
+
+export const EthereumOneCoinPropTypes = {
+  ...OneCoinPropTypes,
+  sortIndex: PropTypes.number.isRequired
 };

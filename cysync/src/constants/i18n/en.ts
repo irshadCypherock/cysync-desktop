@@ -26,7 +26,7 @@ const en: I18nStrings = {
     WALLET_NOT_FOUND:
       'This wallet does not seem to be present on the X1 wallet',
     WALLET_NOT_ON_CARD:
-      'This wallet does not seem to be present on the CyCards',
+      'This wallet does not seem to be present on the X1 Cards',
     WALLET_PARTIAL_STATE:
       'This wallet is misconfigured. Please select the wallet from the main menu on the device to fix it.',
     ALL_WALLET_PARTIAL_STATE:
@@ -56,9 +56,9 @@ const en: I18nStrings = {
     ADD_COIN_REJECTED:
       'Request was rejected on the X1 Wallet\nPlease restart the process to add new coins on the CySync application',
 
-    CARD_AUTH_REJECTED: 'CyCard auth was rejected from device.',
+    CARD_AUTH_REJECTED: 'X1 Card auth was rejected from device.',
     CARD_AUTH_FAILED:
-      'CyCard authentication failed. Please contact Cypherock immediately',
+      'X1 Card authentication failed. Please contact Cypherock immediately',
     CARD_AUTH_DEVICE_PAIRING_FAILED: 'Device-Card pairing failed',
 
     DEVICE_AUTH_REJECTED: 'Device auth was rejected from the device.',
@@ -84,7 +84,7 @@ const en: I18nStrings = {
     RECEIVE_TXN_DEVICE_MISCONFIGURED:
       'Looks like your device has been misconfigured, do you want to configure it now?',
     RECEIVE_TXN_DIFFERENT_ADDRESS:
-      'Some error occured while fetching the address.',
+      'Some error occurred while fetching the address.',
     RECEIVE_TXN_DIFFERENT_ADDRESS_BY_USER: `Please contact cypherock if the addresses on the application did not match the addresses on the device`,
 
     SEND_TXN_REJECTED: (coin: string) =>

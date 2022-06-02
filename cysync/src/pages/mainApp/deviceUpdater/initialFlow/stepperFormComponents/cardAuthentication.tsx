@@ -1,8 +1,8 @@
-import { IconButton } from '@material-ui/core';
-import Grid from '@material-ui/core/Grid';
-import { createStyles, makeStyles } from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import ReportIcon from '@material-ui/icons/Report';
+import ReportIcon from '@mui/icons-material/Report';
+import { IconButton } from '@mui/material';
+import Grid from '@mui/material/Grid';
+import { styled } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import React, { useEffect, useState } from 'react';
 
 import success from '../../../../../assets/icons/generic/success.png';
@@ -12,6 +12,7 @@ import Icon from '../../../../../designSystem/designComponents/icons/Icon';
 import ErrorExclamation from '../../../../../designSystem/iconGroups/errorExclamation';
 import { useCardAuth } from '../../../../../store/hooks/flows';
 import {
+  DeviceConnectionState,
   FeedbackState,
   useConnection,
   useFeedback
@@ -27,40 +28,48 @@ import {
   StepComponentPropTypes
 } from './StepComponentProps';
 
-const useStyles = makeStyles(() =>
-  createStyles({
-    middle: {
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '60vh',
-      justifyContent: 'center',
-      alignItems: 'flex-start'
-    },
-    success: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: '100%'
-    },
-    bottomContainer: {
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    report: {
-      position: 'absolute',
-      right: 20,
-      bottom: 20
-    },
-    btnContainer: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center'
-    }
-  })
-);
+const PREFIX = 'InitialFlowCardAuth';
+
+const classes = {
+  middle: `${PREFIX}-middle`,
+  success: `${PREFIX}-success`,
+  bottomContainer: `${PREFIX}-bottomContainer`,
+  report: `${PREFIX}-report`,
+  btnContainer: `${PREFIX}-btnContainer`
+};
+
+const Root = styled(Grid)(() => ({
+  [`& .${classes.middle}`]: {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '60vh',
+    justifyContent: 'center',
+    alignItems: 'flex-start'
+  },
+  [`& .${classes.success}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%'
+  },
+  [`& .${classes.bottomContainer}`]: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  [`& .${classes.report}`]: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20
+  },
+  [`& .${classes.btnContainer}`]: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+  }
+}));
 
 export interface ICardAuthState {
   '01': -1 | 0 | 1 | 2;
@@ -73,8 +82,6 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
   handleNext,
   handleClose
 }) => {
-  const classes = useStyles();
-
   /**
    * -2 means authentication is remaining
    * -1 means all cards failed authentication
@@ -107,12 +114,11 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
   const {
     internalDeviceConnection: deviceConnection,
     deviceSdkVersion,
-    devicePacketVersion,
     connected,
     inBootloader,
     firmwareVersion,
     inBackgroundProcess,
-    verifyState,
+    deviceConnectionState,
     setIsInFlow,
     deviceState
   } = useConnection();
@@ -148,7 +154,10 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
     if (
       deviceConnection &&
       !inBackgroundProcess &&
-      [1, 2].includes(verifyState)
+      [
+        DeviceConnectionState.IN_TEST_APP,
+        DeviceConnectionState.IN_BOOTLOADER
+      ].includes(deviceConnectionState)
     ) {
       if (!connected) {
         return;
@@ -182,7 +191,6 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
             if (firmwareVersion) {
               return handleCardAuth({
                 connection: deviceConnection,
-                packetVersion: devicePacketVersion,
                 sdkVersion: deviceSdkVersion,
                 setIsInFlow,
                 firmwareVersion: hexToVersion(firmwareVersion),
@@ -222,7 +230,7 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
         setCurrentCard(incrementCurrentCard);
         resetHooks();
       } else {
-        setErrorMsg('Some internal error occured');
+        setErrorMsg('Some internal error occurred');
         setShowRetry(true);
       }
     }
@@ -238,7 +246,6 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
         if (deviceConnection && firmwareVersion) {
           handleCardAuth({
             connection: deviceConnection,
-            packetVersion: devicePacketVersion,
             sdkVersion: deviceSdkVersion,
             setIsInFlow,
             firmwareVersion: hexToVersion(firmwareVersion),
@@ -274,8 +281,8 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
   }, [cardsAuth['04']]);
 
   const getCardText = (cardIndex: string) => {
-    const cardName = ['Red', 'Blue', 'Green', 'Yellow'][Number(cardIndex) - 1];
-    const defaultText = `Tap the ${cardName} cyCard`;
+    const cardName = ['1st', '2nd', '3rd', '4th'][Number(cardIndex) - 1];
+    const defaultText = `Tap the ${cardName} X1 Card`;
 
     return defaultText;
   };
@@ -306,7 +313,7 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
     descriptionError: '',
     email: '',
     emailError: '',
-    subject: 'Reporting for Error (CyCard Authentication)',
+    subject: 'Reporting for Error (X1 Card Authentication)',
     subjectError: ''
   };
 
@@ -318,12 +325,12 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
     });
   };
 
-  let timeout: NodeJS.Timeout | undefined;
+  const timeout = React.useRef<NodeJS.Timeout | undefined>(undefined);
   const onRetry = () => {
     setShowRetry(false);
     setErrorMsg('');
 
-    if (verifyState !== 1) {
+    if (deviceConnectionState !== DeviceConnectionState.IN_TEST_APP) {
       setShowRetry(true);
       setErrorMsg('Please connect the device and try again.');
       return;
@@ -341,16 +348,15 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
     }
     setCardsAuth(temp);
 
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = undefined;
+    if (timeout.current) {
+      clearTimeout(timeout.current);
+      timeout.current = undefined;
     }
 
-    timeout = setTimeout(() => {
+    timeout.current = setTimeout(() => {
       if (deviceConnection && firmwareVersion) {
         handleCardAuth({
           connection: deviceConnection,
-          packetVersion: devicePacketVersion,
           sdkVersion: deviceSdkVersion,
           setIsInFlow,
           firmwareVersion: hexToVersion(firmwareVersion),
@@ -362,7 +368,7 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
   };
 
   return (
-    <Grid container>
+    <Root container>
       <Grid item xs={3} />
       <Grid item xs={6} className={classes.middle}>
         <Typography
@@ -496,7 +502,7 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
           <div className={classes.success}>
             <AvatarIcon alt="success" src={success} size="small" />
             <Typography variant="body2" color="secondary">
-              All CyCards are verified successfully
+              All X1 Cards are verified successfully
             </Typography>
           </div>
         )}
@@ -518,10 +524,11 @@ const CardAuthentication: React.FC<StepComponentProps> = ({
         title="Report issue"
         onClick={handleFeedbackOpen}
         className={classes.report}
+        size="large"
       >
         <ReportIcon color="secondary" />
       </IconButton>
-    </Grid>
+    </Root>
   );
 };
 

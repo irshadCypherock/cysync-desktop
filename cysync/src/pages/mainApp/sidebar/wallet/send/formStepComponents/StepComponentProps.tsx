@@ -1,9 +1,10 @@
+import BigNumber from 'bignumber.js';
 import PropTypes from 'prop-types';
 
 export interface BatchRecipientData {
   id: number;
   recipient: string;
-  amount: number | undefined;
+  amount: string | undefined;
   errorRecipient: string;
   errorAmount: string;
 }
@@ -11,7 +12,7 @@ export interface BatchRecipientData {
 export const BatchRecipientPropType = {
   id: PropTypes.number.isRequired,
   recipient: PropTypes.string.isRequired,
-  amount: PropTypes.number,
+  amount: PropTypes.string,
   errorRecipient: PropTypes.string.isRequired,
   errorAmount: PropTypes.string.isRequired
 };
@@ -29,8 +30,8 @@ export interface StepComponentProps {
   activeButton: number;
   feeType: boolean;
   batchRecipientData: BatchRecipientData[];
-  total: number;
-  transactionFee: number;
+  total: BigNumber;
+  transactionFee: string;
   addBatchTransaction: () => void;
   handleDelete: (e: any) => void;
   handleInputChange: (e: any) => void;
@@ -48,6 +49,7 @@ export interface StepComponentProps {
   verifyRecipientAmount: () => boolean;
   setTransactionFee: (val: number) => void;
   buttonDisabled: boolean;
+  isButtonLoading: boolean;
   gasLimit: number;
   setGasLimit: (val: number) => void;
   handleCopyFromClipboard: (id: string) => void;
@@ -67,8 +69,8 @@ export const StepComponentPropTypes = {
   feeType: PropTypes.bool.isRequired,
   batchRecipientData: PropTypes.arrayOf(PropTypes.exact(BatchRecipientPropType))
     .isRequired,
-  total: PropTypes.number.isRequired,
-  transactionFee: PropTypes.number.isRequired,
+  total: PropTypes.instanceOf(BigNumber).isRequired,
+  transactionFee: PropTypes.string.isRequired,
   addBatchTransaction: PropTypes.func.isRequired,
   handleDelete: PropTypes.func.isRequired,
   handleInputChange: PropTypes.func.isRequired,
@@ -81,6 +83,7 @@ export const StepComponentPropTypes = {
   handleVerificationErrors: PropTypes.func.isRequired,
   setTransactionFee: PropTypes.func.isRequired,
   buttonDisabled: PropTypes.bool.isRequired,
+  isButtonLoading: PropTypes.bool.isRequired,
   gasLimit: PropTypes.number.isRequired,
   setGasLimit: PropTypes.func.isRequired,
   handleCopyFromClipboard: PropTypes.func.isRequired,

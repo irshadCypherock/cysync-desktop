@@ -1,20 +1,18 @@
 import {
+  DeviceConnection,
   DeviceError,
-  DeviceErrorType,
-  PacketVersion
+  DeviceErrorType
 } from '@cypherock/communication';
-import { HardwareWallet } from '@cypherock/database';
+import { Wallet } from '@cypherock/database';
 import { WalletAdder } from '@cypherock/protocols';
 import { useEffect, useState } from 'react';
-import SerialPort from 'serialport';
 
 import logger from '../../../utils/logger';
 import { walletDb } from '../../database';
-import { useI18n, useWallets } from '../../provider';
+import { useConnection, useI18n, useWallets } from '../../provider';
 
 export interface HandleAddWalletOptions {
-  connection: SerialPort;
-  packetVersion: PacketVersion;
+  connection: DeviceConnection;
   sdkVersion: string;
   setIsInFlow: (val: boolean) => void;
 }
@@ -30,10 +28,7 @@ export interface UseAddWalletValues {
   completed: boolean;
   setCompleted: React.Dispatch<React.SetStateAction<boolean>>;
   resetHooks: () => void;
-  cancelAddWallet: (
-    connection: SerialPort,
-    packetVersion: PacketVersion
-  ) => Promise<void>;
+  cancelAddWallet: (connection: DeviceConnection) => Promise<void>;
   walletId: string;
   updateName: () => Promise<void>;
   isNameDiff: boolean;
@@ -58,6 +53,7 @@ export const useAddWallet: UseAddWallet = () => {
 
   const wallets = useWallets();
   const { langStrings } = useI18n();
+  const { deviceSerial } = useConnection();
 
   const resetHooks = () => {
     setDeviceConnected(false);
@@ -80,7 +76,6 @@ export const useAddWallet: UseAddWallet = () => {
 
   const handleAddWallet = async ({
     connection,
-    packetVersion,
     sdkVersion,
     setIsInFlow
   }: HandleAddWalletOptions) => {
@@ -140,7 +135,7 @@ export const useAddWallet: UseAddWallet = () => {
       }
     });
 
-    addWallet.on('walletDetails', async (walletDetails: HardwareWallet) => {
+    addWallet.on('walletDetails', async (walletDetails: Wallet) => {
       try {
         if (walletDetails === null) {
           logger.info('AddWallet: Rejected from device');
@@ -156,12 +151,10 @@ export const useAddWallet: UseAddWallet = () => {
           return;
         }
 
-        const walletWithSameId = await walletDb.getAll({
-          walletId: walletDetails.walletId
-        });
+        const walletWithSameId = await walletDb.getById(walletDetails._id);
 
-        if (walletWithSameId && walletWithSameId.length > 0) {
-          const duplicateWallet = walletWithSameId[0];
+        if (walletWithSameId) {
+          const duplicateWallet = walletWithSameId;
 
           if (duplicateWallet.name === walletDetails.name) {
             logger.info('AddWallet: Duplicate wallet found');
@@ -169,7 +162,7 @@ export const useAddWallet: UseAddWallet = () => {
           } else {
             logger.info('AddWallet: Same wallet found with different name');
             setWalletName(walletDetails.name);
-            setWalletId(walletDetails.walletId);
+            setWalletId(walletDetails._id);
             setPasswordSet(walletDetails.passwordSet);
             setPassphraseSet(walletDetails.passphraseSet);
             setIsNameDiff(true);
@@ -180,12 +173,12 @@ export const useAddWallet: UseAddWallet = () => {
 
           return;
         }
-
+        walletDetails.device = deviceSerial;
         walletDb
           .insert(walletDetails)
           .then(() => {
             setWalletName(walletDetails.name);
-            setWalletId(walletDetails.walletId);
+            setWalletId(walletDetails._id);
             setPasswordSet(walletDetails.passwordSet);
             setPassphraseSet(walletDetails.passphraseSet);
             setCompleted(true);
@@ -217,7 +210,7 @@ export const useAddWallet: UseAddWallet = () => {
        * Error will be thrown in rare conditions where the implementation
        * itself has broken.
        */
-      await addWallet.run({ connection, packetVersion, sdkVersion });
+      await addWallet.run({ connection, sdkVersion });
       setIsInFlow(false);
       logger.info('AddWallet: Completed');
       setCompleted(true);
@@ -230,13 +223,10 @@ export const useAddWallet: UseAddWallet = () => {
     }
   };
 
-  const cancelAddWallet = async (
-    connection: SerialPort,
-    packetVersion: PacketVersion
-  ) => {
+  const cancelAddWallet = async (connection: DeviceConnection) => {
     setIsCancelled(true);
     return addWallet
-      .cancel(connection, packetVersion)
+      .cancel(connection)
       .then(canclled => {
         if (canclled) {
           logger.info('AddWallet: Cancelled');
@@ -255,19 +245,17 @@ export const useAddWallet: UseAddWallet = () => {
         throw new Error('New Wallet details are missing');
       }
 
-      const walletWithSameId = await walletDb.getAll({
-        walletId
-      });
+      const walletWithSameId = await walletDb.getById(walletId);
 
-      if (!(walletWithSameId && walletWithSameId.length > 0)) {
+      if (!walletWithSameId) {
         throw new Error('Could not find wallet with same ID');
       }
 
-      const duplicateWallet = { ...walletWithSameId[0] };
+      const duplicateWallet = { ...walletWithSameId };
       duplicateWallet.name = walletName;
       duplicateWallet.passphraseSet = passphraseSet;
       duplicateWallet.passwordSet = passwordSet;
-      await walletDb.update(duplicateWallet);
+      await walletDb.update(walletWithSameId);
       setIsNameDiff(false);
       setErrorMessage('');
       setWalletSuccess(true);

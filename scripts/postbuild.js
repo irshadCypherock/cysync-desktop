@@ -16,6 +16,8 @@ const CONTENT_TYPE_MAP = {
   ".deb": "application/vnd.debian.binary-package",
 };
 
+const RELEASE_FILE_NAME = "RELEASES.txt";
+
 const getArgs = () => {
   const CMD_ERROR_MSG =
     "Invalid command. Expected command: `node <file_name>.js <folder1,folder2...>`";
@@ -42,6 +44,8 @@ const getArgs = () => {
     }
 
     buildType = name;
+  } else if (name.includes("rc")) {
+    buildType = "rc";
   }
 
   return { buildType, tagName: name, assetFolders: foldernames.split(",") };
@@ -65,6 +69,51 @@ const getReleaseName = (version) => {
   return `v${version}`;
 };
 
+/*
+ * Updating a file intentionally to add a new commit every time a new version is
+ * released.
+ */
+const updateReleaseFile = async ({ releaseName, githubRepo, version }) => {
+  let previousFileContent = "";
+  let sha = "";
+
+  try {
+    const fileContentResp = await axios.get(
+      `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${RELEASE_FILE_NAME}`,
+      { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
+    );
+
+    if (!fileContentResp?.data?.content) {
+      throw new Error("Cannot find file content");
+    }
+    previousFileContent = Buffer.from(fileContentResp.data.content, "base64")
+      .toString()
+      .trim();
+    sha = fileContentResp.data.sha;
+  } catch (error) {
+    if (error?.response?.status !== 404) {
+      throw error;
+    }
+  }
+
+  let fileContent = `${version}`;
+
+  const postData = {
+    content: Buffer.from(fileContent, "utf-8").toString("base64"),
+    message: `Added release ${releaseName}`,
+  };
+
+  if (sha) {
+    postData.sha = sha;
+  }
+
+  await axios.put(
+    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${RELEASE_FILE_NAME}`,
+    postData,
+    { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
+  );
+};
+
 const createRelease = async ({ version, githubRepo, tagName, buildType }) => {
   const releaseName = getReleaseName(version);
 
@@ -73,9 +122,18 @@ const createRelease = async ({ version, githubRepo, tagName, buildType }) => {
     name: releaseName,
   };
 
-  if (buildType === "prod") {
+  if (["prod", "rc"].includes(buildType)) {
     postData.tag_name = tagName;
     postData.name = tagName;
+  }
+
+  // Only add releases file to non prod repos
+  if (buildType !== "prod") {
+    await updateReleaseFile({
+      releaseName: postData.name,
+      githubRepo,
+      version,
+    });
   }
 
   const resp = await axios.post(

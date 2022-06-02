@@ -15,7 +15,7 @@ import Verify from './formStepComponents/verify';
 const addCoinWalletData = [
   ['Select Coins', SelectCoin],
   ['Verify Coins', SelectWallet],
-  ['Tap CyCards', Verify],
+  ['Tap X1 Card', Verify],
   ['Fetch Balance', Syncing]
 ];
 
@@ -24,7 +24,7 @@ interface AddCoinProps {
   coinsPresent: any[];
 }
 
-const Index: React.FC<AddCoinProps> = ({ handleClose, coinsPresent }) => {
+const AddCoin: React.FC<AddCoinProps> = ({ handleClose, coinsPresent }) => {
   const {
     addCoinFormOpen,
     coinAdder,
@@ -77,9 +77,9 @@ const Index: React.FC<AddCoinProps> = ({ handleClose, coinsPresent }) => {
   );
 };
 
-Index.propTypes = {
+AddCoin.propTypes = {
   handleClose: PropTypes.func.isRequired,
   coinsPresent: PropTypes.arrayOf(PropTypes.any).isRequired
 };
 
-export default Index;
+export default AddCoin;

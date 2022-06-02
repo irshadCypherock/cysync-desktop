@@ -40,7 +40,7 @@ export const TutorialProvider: React.FC = ({ children }) => {
     setErrorMsg('');
 
     try {
-      const res = await tutorialServer.getAll(version);
+      const res = await tutorialServer.getAll(version).request();
       if (res.data && res.data.tutorials) {
         setTutorials(res.data.tutorials);
         setIsFetched(true);
@@ -62,7 +62,7 @@ export const TutorialProvider: React.FC = ({ children }) => {
         }
       } else {
         setErrorMsg(
-          'Some internal error occured while fetching the tutorials.'
+          'Some internal error occurred while fetching the tutorials.'
         );
       }
     } finally {

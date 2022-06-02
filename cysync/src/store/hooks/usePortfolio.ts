@@ -5,11 +5,14 @@ import { useEffect, useState } from 'react';
 import { getPortfolioCache } from '../../utils/cache';
 import logger from '../../utils/logger';
 import {
-  erc20tokenDb,
-  priceDb,
+  coinDb,
+  getAllTxns,
+  getLatestPriceForCoin,
+  priceHistoryDb,
+  SentReceive,
+  tokenDb,
   Transaction,
-  transactionDb,
-  xpubDb
+  transactionDb
 } from '../database';
 
 import { CoinDetails, CoinHistory, CoinPriceHistory } from './types';
@@ -80,34 +83,34 @@ export const usePortfolio: UsePortfolio = () => {
   const debouncedRefreshFromDB = useDebouncedFunction(refreshFromDB, 2000);
 
   useEffect(() => {
-    erc20tokenDb.emitter.on('insert', debouncedRefreshFromDB);
-    erc20tokenDb.emitter.on('update', debouncedRefreshFromDB);
-    erc20tokenDb.emitter.on('delete', debouncedRefreshFromDB);
+    tokenDb.emitter.on('insert', debouncedRefreshFromDB);
+    tokenDb.emitter.on('update', debouncedRefreshFromDB);
+    tokenDb.emitter.on('delete', debouncedRefreshFromDB);
 
-    priceDb.emitter.on('insert', debouncedRefreshFromDB);
-    priceDb.emitter.on('insert', debouncedRefreshFromDB);
-    priceDb.emitter.on('update', debouncedRefreshFromDB);
+    priceHistoryDb.emitter.on('insert', debouncedRefreshFromDB);
+    priceHistoryDb.emitter.on('insert', debouncedRefreshFromDB);
+    priceHistoryDb.emitter.on('update', debouncedRefreshFromDB);
 
-    xpubDb.emitter.on('update', debouncedRefreshFromDB);
-    xpubDb.emitter.on('delete', debouncedRefreshFromDB);
-    xpubDb.emitter.on('delete', debouncedRefreshFromDB);
+    coinDb.emitter.on('update', debouncedRefreshFromDB);
+    coinDb.emitter.on('delete', debouncedRefreshFromDB);
+    coinDb.emitter.on('delete', debouncedRefreshFromDB);
 
     transactionDb.emitter.on('insert', debouncedRefreshFromDB);
     transactionDb.emitter.on('update', debouncedRefreshFromDB);
     transactionDb.emitter.on('delete', debouncedRefreshFromDB);
 
     return () => {
-      erc20tokenDb.emitter.removeListener('insert', debouncedRefreshFromDB);
-      erc20tokenDb.emitter.removeListener('update', debouncedRefreshFromDB);
-      erc20tokenDb.emitter.removeListener('delete', debouncedRefreshFromDB);
+      tokenDb.emitter.removeListener('insert', debouncedRefreshFromDB);
+      tokenDb.emitter.removeListener('update', debouncedRefreshFromDB);
+      tokenDb.emitter.removeListener('delete', debouncedRefreshFromDB);
 
-      priceDb.emitter.removeListener('insert', debouncedRefreshFromDB);
-      priceDb.emitter.removeListener('insert', debouncedRefreshFromDB);
-      priceDb.emitter.removeListener('update', debouncedRefreshFromDB);
+      priceHistoryDb.emitter.removeListener('insert', debouncedRefreshFromDB);
+      priceHistoryDb.emitter.removeListener('insert', debouncedRefreshFromDB);
+      priceHistoryDb.emitter.removeListener('update', debouncedRefreshFromDB);
 
-      xpubDb.emitter.removeListener('update', debouncedRefreshFromDB);
-      xpubDb.emitter.removeListener('delete', debouncedRefreshFromDB);
-      xpubDb.emitter.removeListener('delete', debouncedRefreshFromDB);
+      coinDb.emitter.removeListener('update', debouncedRefreshFromDB);
+      coinDb.emitter.removeListener('delete', debouncedRefreshFromDB);
+      coinDb.emitter.removeListener('delete', debouncedRefreshFromDB);
 
       transactionDb.emitter.removeListener('insert', debouncedRefreshFromDB);
       transactionDb.emitter.removeListener('update', debouncedRefreshFromDB);
@@ -120,13 +123,16 @@ export const usePortfolio: UsePortfolio = () => {
     days: number,
     wallet = ''
   ) => {
-    const coin = COINS[coinType];
-    if (!coin) {
+    const coinData = COINS[coinType];
+    if (!coinData) {
       throw new Error(`Cannot find coinType: ${coinType}`);
     }
 
     let totalBalance = new BigNumber(0);
-    const allPrices = await priceDb.getPrice(coinType, days);
+    const allPrices = await priceHistoryDb.getOne({
+      slug: coinType,
+      interval: days
+    });
     if (!allPrices) {
       return null;
     }
@@ -138,51 +144,65 @@ export const usePortfolio: UsePortfolio = () => {
     let transactionHistory: Transaction[] = [];
 
     if (wallet && wallet !== 'null') {
-      if (coin.isErc20Token) {
-        const token = await erc20tokenDb.getByWalletIdandToken(
-          wallet,
-          coinType
-        );
+      if (coinData.isErc20Token) {
+        const token = await tokenDb.getOne({
+          walletId: wallet,
+          slug: coinType
+        });
         if (token) totalBalance = new BigNumber(token.balance);
         else return null;
       } else {
-        const xpub = await xpubDb.getByWalletIdandCoin(wallet, coinType);
-        if (xpub)
+        const coin = await coinDb.getOne({ walletId: wallet, slug: coinType });
+        if (coin)
           totalBalance = new BigNumber(
-            xpub.totalBalance ? xpub.totalBalance.balance : 0
+            coin.totalBalance ? coin.totalBalance : 0
           );
         else return null;
       }
 
-      transactionHistory = await transactionDb.getAll(
+      transactionHistory = await getAllTxns(
         {
           walletId: wallet,
-          coin: coinType,
+          coin: coinType
+        },
+        {
           excludeFailed: true,
           excludePending: true
         },
-        { sort: 'confirmed', order: 'd' }
+        {
+          field: 'confirmed',
+          order: 'desc'
+        }
       );
     } else {
-      if (coin.isErc20Token) {
-        const tokens = await erc20tokenDb.getByToken(coinType);
+      if (coinData.isErc20Token) {
+        const tokens = await tokenDb.getAll({ slug: coinType });
         if (tokens.length === 0) return null;
         for (const token of tokens) {
           totalBalance = totalBalance.plus(token.balance);
         }
       } else {
-        const allCoins = await xpubDb.getByCoin(coinType);
-        if (!allCoins || allCoins.length === 0) return null;
-        for (const xpub of allCoins) {
+        const allCoins = await coinDb.getAll({ slug: coinType });
+        if (allCoins.length === 0) return null;
+        for (const coin of allCoins) {
           totalBalance = totalBalance.plus(
-            xpub.totalBalance ? xpub.totalBalance.balance : 0
+            coin.totalBalance ? coin.totalBalance : 0
           );
         }
       }
 
-      transactionHistory = await transactionDb.getAll(
-        { coin: coinType, excludeFailed: true, excludePending: true },
-        { sort: 'confirmed', order: 'd' }
+      transactionHistory = await getAllTxns(
+        {
+          coin: coinType
+        },
+        {
+          excludeFailed: true,
+          excludePending: true
+        },
+        {
+          field: 'confirmed',
+          order: 'desc'
+        }
       );
     }
 
@@ -213,16 +233,16 @@ export const usePortfolio: UsePortfolio = () => {
         if (transaction.confirmed) {
           const transactionTime = new Date(transaction.confirmed).getTime();
           if (computedPrices[i][0] <= transactionTime) {
-            if (transaction.sentReceive === 'SENT') {
+            if (transaction.sentReceive === SentReceive.SENT) {
               prevTransactionAmount = prevTransactionAmount.plus(
                 new BigNumber(transaction.amount)
               );
-              if (!coin.isErc20Token) {
+              if (!coinData.isErc20Token) {
                 prevTransactionAmount = prevTransactionAmount.plus(
                   new BigNumber(transaction.fees || 0)
                 );
               }
-            } else if (transaction.sentReceive === 'FEES') {
+            } else if (transaction.sentReceive === SentReceive.FEES) {
               prevTransactionAmount = prevTransactionAmount.plus(
                 new BigNumber(transaction.amount)
               );
@@ -243,7 +263,7 @@ export const usePortfolio: UsePortfolio = () => {
 
       computedPrices[i][1] = balance
         .multipliedBy(computedPrices[i][1])
-        .dividedBy(coin.multiplier)
+        .dividedBy(coinData.multiplier)
         .toNumber();
     }
 
@@ -333,47 +353,47 @@ export const usePortfolio: UsePortfolio = () => {
       const setOfCoins: CoinDetails[] = [];
 
       for (const coinType of Object.keys(COINS)) {
-        const coin = COINS[coinType];
-        if (!coin) {
+        const coinData = COINS[coinType];
+        if (!coinData) {
           throw new Error(`Cannot find coinType: ${coinType}`);
         }
         let totalBalance = new BigNumber(0);
         const currentTempCoin: CoinDetails = {
           name: coinType,
-          decimal: coin.decimal,
+          decimal: coinData.decimal,
           balance: '0',
           value: '0',
           price: '0'
         };
 
         if (walletId && walletId !== 'null') {
-          if (coin.isErc20Token) {
-            const token = await erc20tokenDb.getByWalletIdandToken(
+          if (coinData.isErc20Token) {
+            const token = await tokenDb.getOne({
               walletId,
-              coinType
-            );
+              slug: coinType
+            });
             if (token) totalBalance = new BigNumber(token.balance);
             else continue;
           } else {
-            const xpub = await xpubDb.getByWalletIdandCoin(walletId, coinType);
+            const xpub = await coinDb.getOne({ walletId, slug: coinType });
             if (xpub)
               totalBalance = new BigNumber(
-                xpub.totalBalance ? xpub.totalBalance.balance : 0
+                xpub.totalBalance ? xpub.totalBalance : 0
               );
             else continue;
           }
-        } else if (coin.isErc20Token) {
-          const tokens = await erc20tokenDb.getByToken(coinType);
+        } else if (coinData.isErc20Token) {
+          const tokens = await tokenDb.getAll({ slug: coinType });
           if (tokens.length === 0) continue;
           for (const token of tokens) {
             totalBalance = totalBalance.plus(token.balance);
           }
         } else {
-          const coinsFromDB = await xpubDb.getByCoin(coinType);
-          if (coinsFromDB.length === 0) continue;
-          for (const c of coinsFromDB) {
+          const coinsData = await coinDb.getAll({ slug: coinType });
+          if (coinsData.length === 0) continue;
+          for (const coin of coinsData) {
             totalBalance = totalBalance.plus(
-              c.totalBalance ? c.totalBalance.balance : 0
+              coin.totalBalance ? coin.totalBalance : 0
             );
           }
         }
@@ -382,9 +402,11 @@ export const usePortfolio: UsePortfolio = () => {
           setHasCoins(true);
         }
 
-        const res = await priceDb.getPrice(coinType, 7);
+        const res = await priceHistoryDb.getOne({
+          slug: coinType,
+          interval: 7
+        });
 
-        let latestPrice = 0;
         if (res && res.data) {
           const latestUnitPrices = res.data;
           if (!latestUnitPrices[latestUnitPrices.length - 1]) {
@@ -392,12 +414,12 @@ export const usePortfolio: UsePortfolio = () => {
               latestUnitPrices,
               coinType
             });
-          } else {
-            latestPrice = latestUnitPrices[latestUnitPrices.length - 1][1];
           }
         }
 
-        const balance = totalBalance.dividedBy(coin.multiplier);
+        const latestPrice = await getLatestPriceForCoin(coinType);
+
+        const balance = totalBalance.dividedBy(coinData.multiplier);
 
         currentTempCoin.balance = balance.toString();
 
@@ -408,7 +430,7 @@ export const usePortfolio: UsePortfolio = () => {
         currentTempCoin.price = latestPrice.toString();
 
         // Don't add coins to holdings (This will not display the coin in chart)
-        if (!coin.isTest) {
+        if (!coinData.isTest) {
           allCoinholding.push(parseFloat(value.toFixed(3)));
         }
 
@@ -425,23 +447,17 @@ export const usePortfolio: UsePortfolio = () => {
     switch (index) {
       case 0:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.value);
-          const comp2 = new BigNumber(b.value);
-
-          if (comp1.isGreaterThan(comp2)) return -1;
-          if (comp1.isLessThan(comp2)) return 1;
-          return 0;
+          const numA = new BigNumber(a.value);
+          const numB = new BigNumber(b.value);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 1:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.value);
-          const comp2 = new BigNumber(b.value);
-
-          if (comp1.isGreaterThan(comp2)) return 1;
-          if (comp1.isLessThan(comp2)) return -1;
-          return 0;
+          const numA = new BigNumber(a.value);
+          const numB = new BigNumber(b.value);
+          return numA.comparedTo(numB);
         };
         break;
 
@@ -463,67 +479,49 @@ export const usePortfolio: UsePortfolio = () => {
 
       case 4:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.balance);
-          const comp2 = new BigNumber(b.balance);
-
-          if (comp1.isGreaterThan(comp2)) return -1;
-          if (comp1.isLessThan(comp2)) return 1;
-          return 0;
+          const numA = new BigNumber(a.balance);
+          const numB = new BigNumber(b.balance);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 5:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.balance);
-          const comp2 = new BigNumber(b.balance);
-
-          if (comp1.isGreaterThan(comp2)) return 1;
-          if (comp1.isLessThan(comp2)) return -1;
-          return 0;
+          const numA = new BigNumber(a.balance);
+          const numB = new BigNumber(b.balance);
+          return numA.comparedTo(numB);
         };
         break;
 
       case 6:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.price);
-          const comp2 = new BigNumber(b.price);
-
-          if (comp1.isGreaterThan(comp2)) return -1;
-          if (comp1.isLessThan(comp2)) return 1;
-          return 0;
+          const numA = new BigNumber(a.price);
+          const numB = new BigNumber(b.price);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 7:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.price);
-          const comp2 = new BigNumber(b.price);
-
-          if (comp1.isGreaterThan(comp2)) return 1;
-          if (comp1.isLessThan(comp2)) return -1;
-          return 0;
+          const numA = new BigNumber(a.price);
+          const numB = new BigNumber(b.price);
+          return numA.comparedTo(numB);
         };
         break;
 
       case 8:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.value).dividedBy(total);
-          const comp2 = new BigNumber(b.value).dividedBy(total);
-
-          if (comp1.isGreaterThan(comp2)) return -1;
-          if (comp1.isLessThan(comp2)) return 1;
-          return 0;
+          const numA = new BigNumber(a.value).dividedBy(total);
+          const numB = new BigNumber(b.value).dividedBy(total);
+          return numB.comparedTo(numA);
         };
         break;
 
       case 9:
         compareFunc = (a, b) => {
-          const comp1 = new BigNumber(a.value).dividedBy(total);
-          const comp2 = new BigNumber(b.value).dividedBy(total);
-
-          if (comp1.isGreaterThan(comp2)) return 1;
-          if (comp1.isLessThan(comp2)) return -1;
-          return 0;
+          const numA = new BigNumber(a.value).dividedBy(total);
+          const numB = new BigNumber(b.value).dividedBy(total);
+          return numA.comparedTo(numB);
         };
         break;
 
@@ -608,6 +606,7 @@ export const usePortfolio: UsePortfolio = () => {
         .catch(error => {
           logger.error(error);
         });
+
       getAllCoinPriceHistory(timeActiveButton, currentWallet, true);
     }
   }, [doRefresh]);

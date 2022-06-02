@@ -5,17 +5,15 @@ import {
   EthCoinData
 } from '@cypherock/communication';
 import { EthereumWallet } from '@cypherock/wallet';
-import Step from '@material-ui/core/Step';
-import StepConnector from '@material-ui/core/StepConnector';
-import StepLabel from '@material-ui/core/StepLabel';
-import Stepper from '@material-ui/core/Stepper';
-import {
-  createStyles,
-  makeStyles,
-  Theme,
-  withStyles
-} from '@material-ui/core/styles';
-import CheckCircleIcon from '@material-ui/icons/CheckCircle';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import Step from '@mui/material/Step';
+import StepConnector from '@mui/material/StepConnector';
+import { StepIconProps } from '@mui/material/StepIcon';
+import StepLabel from '@mui/material/StepLabel';
+import Stepper from '@mui/material/Stepper';
+import { styled, Theme } from '@mui/material/styles';
+import createStyles from '@mui/styles/createStyles';
+import withStyles from '@mui/styles/withStyles';
 import BigNumber from 'bignumber.js';
 import clsx from 'clsx';
 import { clipboard } from 'electron';
@@ -63,98 +61,92 @@ const QontoConnector = withStyles((theme: Theme) =>
   })
 )(StepConnector);
 
-const useQontoStepIconStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      color: theme.palette.text.primary,
-      display: 'flex',
-      height: 22,
-      alignItems: 'center'
-    },
-    active: {
-      color: theme.palette.secondary.main
-    },
-    outerCircle: {
-      border: `1px solid ${theme.palette.secondary.main}`,
-      padding: 4,
-      borderRadius: '50%'
-    },
-    notActiveCircle: {
-      border: `1px solid ${theme.palette.text.secondary}`
-    },
-    circle: {
-      width: 20,
-      height: 20,
-      borderRadius: '50%',
-      backgroundColor: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    activeCircle: {
-      background: theme.palette.secondary.main
-    },
-    completed: {
-      color: theme.palette.secondary.light,
-      zIndex: 1,
-      fontSize: 28
-    },
-    text: {},
-    activeText: {
-      color: theme.palette.primary.main
-    }
-  })
-);
+const STEP_PREFIX = 'WalletSend-Step';
 
-type Props = {
-  active?: boolean | undefined;
-  completed?: boolean | undefined;
-  icon?: JSX.Element;
+const stepClasses = {
+  active: `${STEP_PREFIX}-active`,
+  outerCircle: `${STEP_PREFIX}-outerCircle`,
+  notActiveCircle: `${STEP_PREFIX}-notActiveCircle`,
+  circle: `${STEP_PREFIX}-circle`,
+  activeCircle: `${STEP_PREFIX}-activeCircle`,
+  completed: `${STEP_PREFIX}-completed`,
+  activeText: `${STEP_PREFIX}-activeText`
 };
 
-const QontoStepIcon: React.FC<Props> = ({ active, completed, icon }) => {
-  const classes = useQontoStepIconStyles();
+const StepRoot = styled('div')(({ theme }) => ({
+  color: theme.palette.text.primary,
+  display: 'flex',
+  height: 22,
+  alignItems: 'center',
+  [`&.${stepClasses.active}`]: {
+    color: theme.palette.secondary.main
+  },
+  [`& .${stepClasses.outerCircle}`]: {
+    border: `1px solid ${theme.palette.secondary.main}`,
+    padding: 4,
+    borderRadius: '50%'
+  },
+  [`& .${stepClasses.notActiveCircle}`]: {
+    border: `1px solid ${theme.palette.text.secondary}`
+  },
+  [`& .${stepClasses.circle}`]: {
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    backgroundColor: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  [`& .${stepClasses.activeCircle}`]: {
+    background: theme.palette.secondary.main
+  },
+  [`& .${stepClasses.completed}`]: {
+    color: theme.palette.secondary.light,
+    zIndex: 1,
+    fontSize: 28
+  },
+  [`& .${stepClasses.activeText}`]: {
+    color: theme.palette.primary.main
+  }
+}));
+
+const QontoStepIcon: React.FC<StepIconProps> = ({
+  active,
+  completed,
+  icon
+}) => {
   return (
-    <div
-      className={clsx(classes.root, {
-        [classes.active]: active
+    <StepRoot
+      className={clsx({
+        [stepClasses.active]: active
       })}
     >
       {completed ? (
-        <CheckCircleIcon className={classes.completed} />
+        <CheckCircleIcon className={stepClasses.completed} />
       ) : (
         <div
-          className={clsx(classes.outerCircle, {
-            [classes.notActiveCircle]: !active
+          className={clsx(stepClasses.outerCircle, {
+            [stepClasses.notActiveCircle]: !active
           })}
         >
           <div
-            className={clsx(classes.circle, {
-              [classes.activeCircle]: active
+            className={clsx(stepClasses.circle, {
+              [stepClasses.activeCircle]: active
             })}
           >
             <span
-              className={clsx(classes.text, { [classes.activeText]: active })}
+              className={clsx({
+                [stepClasses.activeText]: active
+              })}
             >
               {icon}
             </span>
           </div>
         </div>
       )}
-    </div>
+    </StepRoot>
   );
-};
-
-QontoStepIcon.propTypes = {
-  active: PropTypes.bool,
-  completed: PropTypes.bool,
-  icon: PropTypes.element
-};
-
-QontoStepIcon.defaultProps = {
-  active: undefined,
-  completed: undefined,
-  icon: undefined
 };
 
 const StyledStepLabel = withStyles((theme: Theme) =>
@@ -171,26 +163,37 @@ const StyledStepLabel = withStyles((theme: Theme) =>
   })
 )(StepLabel);
 
-const useStyles = makeStyles(theme => ({
-  root: {
+const PREFIX = 'WalletSend';
+
+const classes = {
+  root: `${PREFIX}-root`,
+  backButton: `${PREFIX}-backButton`,
+  instructions: `${PREFIX}-instructions`,
+  stepRoot: `${PREFIX}-stepRoot`,
+  stepperRoot: `${PREFIX}-stepperRoot`,
+  stepLabel: `${PREFIX}-stepLabel`
+};
+
+const Root = styled('div')(({ theme }) => ({
+  [`&.${classes.root}`]: {
     width: '100%'
   },
-  backButton: {
+  [`& .${classes.backButton}`]: {
     marginRight: theme.spacing(1)
   },
-  instructions: {
+  [`& .${classes.instructions}`]: {
     marginTop: theme.spacing(1),
     marginBottom: theme.spacing(1)
   },
-  stepRoot: {
+  [`& .${classes.stepRoot}`]: {
     padding: 20,
     paddingLeft: 50,
     paddingRight: 50
   },
-  stepperRoot: {
-    background: theme.palette.primary.light
+  [`& .${classes.stepperRoot}`]: {
+    background: 'rgba(0,0,0,0)'
   },
-  stepLabel: {
+  [`& .${classes.stepLabel}`]: {
     color: theme.palette.primary.light
   }
 }));
@@ -201,10 +204,10 @@ type StepperProps = {
 };
 
 const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
-  const classes = useStyles();
   const { sendTransaction } = useSendTransactionContext();
   const [activeStep, setActiveStep] = useState(0);
   const [buttonDisabled, setButtonDisabled] = useState(false);
+  const [isButtonLoading, setIsButtonLoading] = useState(false);
   const [maximum, setMaximum] = React.useState(false);
   const [gasLimit, setGasLimit] = React.useState(21000);
   const [estimateGasLimit, setEstimateGasLimit] = React.useState(true);
@@ -224,7 +227,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   const [batchRecipientData, addbatchRecipientData] = React.useState<
     BatchRecipientData[]
   >([
-    { id: 1, recipient: ' ', amount: 0.0, errorRecipient: '', errorAmount: '' }
+    { id: 1, recipient: ' ', amount: '', errorRecipient: '', errorAmount: '' }
   ]);
 
   const [duplicateBatchAddresses, setDuplicateBatchAddresses] = useState<
@@ -232,10 +235,10 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   >([]);
 
   // State Maintaining the Total of all
-  const [total, setTotal] = React.useState(0);
+  const [total, setTotal] = React.useState(new BigNumber(0));
 
   // Set a constant fee default value for each coin in case the api call fails. Regularly update the file.
-  const [transactionFee, setTransactionFee] = React.useState(75);
+  const [transactionFee, setTransactionFee] = React.useState('75');
 
   const { coinDetails } = useCurrentCoin();
   const { token } = useTokenContext();
@@ -243,15 +246,15 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   // Change the total according to the current state
   const handleTotal = () => {
     if (maxSend) {
-      setTotal(sendTransaction.sendMaxAmount);
+      setTotal(new BigNumber(sendTransaction.sendMaxAmount));
     } else {
-      let tempTotal = +0;
+      let tempTotal = new BigNumber(0);
       batchRecipientData.forEach(recipient => {
         if (recipient.amount) {
-          tempTotal = +tempTotal + +recipient.amount;
+          tempTotal = tempTotal.plus(new BigNumber(recipient.amount));
         }
       });
-      setTotal(tempTotal);
+      setTotal(new BigNumber(tempTotal));
     }
   };
 
@@ -260,7 +263,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   }, [sendTransaction.sendMaxAmount, batchRecipientData]);
 
   const triggerCalcFee = () => {
-    const coinAbbr = token ? token.coin : coinDetails.coin;
+    const coinAbbr = token ? token.coin : coinDetails.slug;
     const coin = COINS[coinAbbr];
     let contractAddress: string | undefined;
     if (token && coin instanceof Erc20CoinData) {
@@ -270,9 +273,9 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
     sendTransaction.handleEstimateFee(
       coinDetails.xpub,
       coinDetails.zpub,
-      coinDetails.coin,
-      changeFormatOfOutputList(batchRecipientData, coinDetails.coin, token),
-      transactionFee,
+      coinDetails.slug,
+      changeFormatOfOutputList(batchRecipientData, coinDetails.slug, token),
+      parseInt(transactionFee, 10) || 0,
       maxSend,
       {
         gasLimit,
@@ -285,19 +288,24 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   const debouncedCaclFee = useDebouncedFunction(triggerCalcFee, 500);
 
   const triggerCalcGasLimit = async () => {
-    const coin = COINS[coinDetails.coin];
+    const coin = COINS[coinDetails.slug];
     if (
       !(
         estimateGasLimit &&
         coin instanceof EthCoinData &&
-        token &&
         batchRecipientData.length > 0 &&
         batchRecipientData[0].recipient.length === 42
       )
     ) {
       return;
     }
-    setButtonDisabled(true);
+
+    if (!token) {
+      setGasLimit(21000);
+      return;
+    }
+
+    setIsButtonLoading(true);
     const wallet = new EthereumWallet(coinDetails.xpub, coin);
     const fromAddress = wallet.address;
     const toAddress = batchRecipientData[0].recipient.trim();
@@ -324,7 +332,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
     if (estimatedLimit) {
       setGasLimit(estimatedLimit);
     }
-    setButtonDisabled(false);
+    setIsButtonLoading(false);
   };
 
   const debouncedCaclGasLimit = useDebouncedFunction(triggerCalcGasLimit, 500);
@@ -333,7 +341,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
     const newBatchRecipientData = batchRecipientData.map(data => {
       return {
         ...data,
-        amount: isMaxSend ? undefined : 0
+        amount: isMaxSend ? undefined : ''
       };
     });
 
@@ -341,7 +349,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   };
 
   useEffect(() => {
-    const coin = COINS[coinDetails.coin];
+    const coin = COINS[coinDetails.slug];
     if (coin instanceof EthCoinData) {
       debouncedCaclFee();
     }
@@ -355,6 +363,11 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
 
   useEffect(() => {
     debouncedCaclFee();
+    if (!transactionFee || (parseInt(transactionFee, 10) || 0) <= 0) {
+      setButtonDisabled(true);
+    } else {
+      setButtonDisabled(false);
+    }
   }, [transactionFee, batchRecipientData]);
 
   useEffect(() => {
@@ -373,7 +386,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
       {
         id: lastElementId + 1,
         recipient: '',
-        amount: 0.0,
+        amount: '',
         errorRecipient: '',
         errorAmount: ''
       }
@@ -463,7 +476,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
       JSON.stringify(batchRecipientData)
     );
     let isValid = true;
-    const { isEth } = COINS[coinDetails.coin];
+    const { isEth } = COINS[coinDetails.slug];
     copyBatchRecipientData.forEach((elem, index) => {
       const amount = new BigNumber(
         elem.amount === undefined ? '' : elem.amount
@@ -497,7 +510,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
       ) {
         if (!error) {
           copyRecipient.errorRecipient = `This is not a valid ${
-            COINS[coinDetails.coin].name
+            COINS[coinDetails.slug].name
           } address`;
         } else {
           copyRecipient.errorRecipient = '';
@@ -528,11 +541,11 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   };
 
   const handleTransactionFeeChange = (e: any) => {
-    setTransactionFee(+e.target.value);
+    setTransactionFee(e.target.value);
   };
 
   const handleTransactionFeeChangeSlider = (fee: number) => {
-    setTransactionFee(fee);
+    setTransactionFee(fee.toString());
   };
 
   const handleNext = () => {
@@ -546,7 +559,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
   };
 
   return (
-    <div className={classes.root}>
+    <Root className={classes.root}>
       <ErrorBox
         open={!!sendTransaction.errorMessage}
         handleClose={handleErrorBoxClose}
@@ -571,7 +584,7 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
           </Step>
         ))}
       </Stepper>
-      <div>
+      <div style={{ marginTop: '10px' }}>
         <CreateComponent
           component={stepsData[activeStep][1]}
           props={{
@@ -604,11 +617,12 @@ const SendForm: React.FC<StepperProps> = ({ stepsData, handleClose }) => {
             handleClose,
             estimateGasLimit,
             setEstimateGasLimit,
-            duplicateBatchAddresses
+            duplicateBatchAddresses,
+            isButtonLoading
           }}
         />
       </div>
-    </div>
+    </Root>
   );
 };
 
