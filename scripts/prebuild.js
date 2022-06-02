@@ -96,21 +96,24 @@ const getReleaseIndex = async ({ githubRepo }) => {
   if (previousFileContent) {
     const contentArr = previousFileContent.split("\n");
     if (contentArr.length > 0) {
-      const versionArr = version.split("-");
+      const versionArr = contentArr[0].split("-");
       if (versionArr.length !== 2) {
         throw new Error("Invalid version " + version);
       }
 
+      const baseVersion = versionArr[0];
       if (versionArr[1].split(".").length !== 2) {
         throw new Error("Invalid version " + version);
       }
 
-      const index = versionArr[1].split(".")[1].trim();
-      if (!index || isNaN(index)) {
-        throw new Error("Invalid version " + version);
-      }
+      if (baseVersion === packageJson.version) {
+        const index = versionArr[1].split(".")[1].trim();
+        if (!index || isNaN(index)) {
+          throw new Error("Invalid version " + version);
+        }
 
-      currentIndex = parseInt(index, 10) + 1;
+        currentIndex = parseInt(index, 10) + 1;
+      }
     }
   }
 
