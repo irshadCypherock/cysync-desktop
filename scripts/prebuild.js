@@ -66,6 +66,7 @@ const getArgs = () => {
   return { buildType, tagName: name };
 };
 
+// Gets the previos version and determines the next index
 const getReleaseIndex = async ({ githubRepo }) => {
   let previousFileContent = "";
 
