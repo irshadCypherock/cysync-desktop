@@ -2,7 +2,7 @@
   "BUILD_TYPE": "debug",
   "LOG_LEVEL": "silly",
   "SERVER_ENV": "development",
-  "GITHUB_REPO": "Cypherock/cysync-desktop-dev",
   "BUILD_VERSION": "DEVELOPMENT",
+  "GITHUB_REPO": "irshadCypherock/cysync-desktop-dev",
   "SIMULATE_PRODUCTION": false
 }
