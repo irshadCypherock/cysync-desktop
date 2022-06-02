@@ -96,7 +96,8 @@ const getReleaseIndex = async ({ githubRepo }) => {
   if (previousFileContent) {
     const contentArr = previousFileContent.split("\n");
     if (contentArr.length > 0) {
-      const versionArr = contentArr[0].split("-");
+      const version = contentArr[0];
+      const versionArr = version.split("-");
       if (versionArr.length !== 2) {
         throw new Error("Invalid version " + version);
       }
