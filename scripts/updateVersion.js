@@ -3,7 +3,7 @@ const axios = require("axios");
 const GITHUB_BASE_API = "https://api.github.com";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 const GITHUB_ACCESS_TOKEN = process.env.GH_ACCESS_TOKEN;
-const BRANCH = GITHUB_BASE_REF;
+const BRANCH = process.env.GITHUB_BASE_REF;
 
 const VERSION_FILE_NAME = "version.txt";
 
