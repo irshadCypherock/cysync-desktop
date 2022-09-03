@@ -4,7 +4,9 @@ const GITHUB_BASE_API = "https://api.github.com";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 const GITHUB_ACCESS_TOKEN = process.env.GH_ACCESS_TOKEN;
 
-const VERSION_FILE_NAME = 'version.txt';
+const VERSION_FILE_NAME = "version.txt";
+
+console.length(GITHUB_REPOSITORY);
 
 const getArgs = () => {
   const CMD_ERROR_MSG =
@@ -128,6 +130,8 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
     postData,
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
+
+  console.log("Updated package.json");
 };
 
 const updateVersionFile = async ({ githubRepo, bumpType }) => {
@@ -176,7 +180,8 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
 
-  await updatePackageJson({ githubRepo, updatedVersion, bumpType });
+  await updatePackageJson({ githubRepo, version: updatedVersion, bumpType });
+  console.log("Updated version file");
 };
 
 const run = async () => {
