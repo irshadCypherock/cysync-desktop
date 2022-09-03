@@ -2,6 +2,8 @@ const axios = require("axios");
 
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 
+const VERSION_FILE_NAME = 'version.txt';
+
 const getArgs = () => {
   const CMD_ERROR_MSG =
     "Invalid command. Expected command: `node <file_name>.js <PR Title>`";
