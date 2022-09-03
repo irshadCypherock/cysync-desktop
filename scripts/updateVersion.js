@@ -3,6 +3,7 @@ const axios = require("axios");
 const GITHUB_BASE_API = "https://api.github.com";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 const GITHUB_ACCESS_TOKEN = process.env.GH_ACCESS_TOKEN;
+const BRANCH = GITHUB_BASE_REF;
 
 const VERSION_FILE_NAME = "version.txt";
 
@@ -95,7 +96,7 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
 
   try {
     const fileContentResp = await axios.get(
-      `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json`,
+      `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json?ref=${BRANCH}`,
       { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
     );
 
@@ -126,7 +127,7 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
   }
 
   await axios.put(
-    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json`,
+    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json?ref=${BRANCH}`,
     postData,
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
@@ -140,7 +141,7 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
 
   try {
     const fileContentResp = await axios.get(
-      `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}`,
+      `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}?ref=${BRANCH}`,
       { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
     );
 
@@ -158,10 +159,14 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
     }
   }
 
+  console.log(previousFileContent);
+
   const updatedVersion = getUpdatedVersion({
     previousVersion: previousFileContent,
     bumpType,
   });
+
+  console.log(updatedVersion);
 
   let fileContent = `${encodeVersion(updatedVersion)}`;
 
@@ -175,7 +180,7 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
   }
 
   await axios.put(
-    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}`,
+    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}?ref=${BRANCH}`,
     postData,
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
