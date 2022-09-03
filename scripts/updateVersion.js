@@ -1,5 +1,6 @@
 const axios = require("axios");
 
+const GITHUB_BASE_API = "https://api.github.com";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 
 const VERSION_FILE_NAME = 'version.txt';
