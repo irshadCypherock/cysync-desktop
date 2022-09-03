@@ -1,4 +1,4 @@
-## Introduction
+## Introduction 1
 The CySync application allows you to securly communicate with the Cypherock X1 hardware wallet for a multitude of things, like signing a transaction, sending and receiving coins, and managing and upgrading the hardware wallet.
 
 ### Responsible disclosure policy
