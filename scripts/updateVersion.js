@@ -43,7 +43,12 @@ const getArgs = () => {
 
 const decodeVersion = (version) => {
   if (!version) {
-    return "1.0.0.0";
+    return {
+      major: 1,
+      minor: 0,
+      feature: 0,
+      bugfix: 0,
+    };
   }
 
   const versionArray = version.split(".");
