@@ -120,6 +120,7 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
   const postData = {
     content: Buffer.from(fileContent, "utf-8").toString("base64"),
     message: `Bumped Version: ${bumpType}`,
+    branch: BRANCH,
   };
 
   if (sha) {
@@ -127,7 +128,7 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
   }
 
   await axios.put(
-    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json?ref=${BRANCH}`,
+    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/cysync/package.json`,
     postData,
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
@@ -173,6 +174,7 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
   const postData = {
     content: Buffer.from(fileContent, "utf-8").toString("base64"),
     message: `Bumped Version: ${bumpType}`,
+    branch: BRANCH,
   };
 
   if (sha) {
@@ -180,7 +182,7 @@ const updateVersionFile = async ({ githubRepo, bumpType }) => {
   }
 
   await axios.put(
-    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}?ref=${BRANCH}`,
+    `${GITHUB_BASE_API}/repos/${githubRepo}/contents/${VERSION_FILE_NAME}`,
     postData,
     { headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` } }
   );
