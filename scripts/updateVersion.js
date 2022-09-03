@@ -6,7 +6,7 @@ const GITHUB_ACCESS_TOKEN = process.env.GH_ACCESS_TOKEN;
 
 const VERSION_FILE_NAME = "version.txt";
 
-console.length(GITHUB_REPOSITORY);
+console.log(GITHUB_REPOSITORY);
 
 const getArgs = () => {
   const CMD_ERROR_MSG =
