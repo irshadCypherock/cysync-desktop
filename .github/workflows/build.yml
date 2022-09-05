@@ -7,7 +7,7 @@ on:
 
 env:
   GH_ACCESS_TOKEN: ${{secrets.GH_ACCESS_TOKEN}}
-  # NODE_OPTIONS: "--max-old-space-size=8192"
+  NODE_OPTIONS: "--max-old-space-size=8192"
 
 jobs:
   build-linux:
@@ -85,9 +85,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         run: |
-          chmod +x ./scripts/build-mac.sh
+          ls
+          chmod +x scripts/build-mac.sh
           # arch -arm64 ./scripts/build-mac.sh
-          arch -x86_64 ./scripts/build-mac.sh
+          arch -x86_64 scripts/build-mac.sh
       - uses: actions/upload-artifact@v3
         with:
           name: build-macos
