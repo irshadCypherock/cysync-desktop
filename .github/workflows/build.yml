@@ -62,7 +62,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      # - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
       # - name: Install the Apple certificate and provisioning profile
       #   env:
       #     BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -85,8 +85,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         run: |
-          ls
-          chmod +x scripts/build-mac.sh
           # arch -arm64 ./scripts/build-mac.sh
           arch -x86_64 scripts/build-mac.sh
       - uses: actions/upload-artifact@v3
