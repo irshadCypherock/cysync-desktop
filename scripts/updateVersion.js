@@ -8,6 +8,7 @@ const BRANCH = process.env.GITHUB_BASE_REF;
 const VERSION_FILE_NAME = "version.txt";
 
 console.log(GITHUB_REPOSITORY);
+console.log(BRANCH);
 
 const getArgs = () => {
   const CMD_ERROR_MSG =
@@ -43,12 +44,7 @@ const getArgs = () => {
 
 const decodeVersion = (version) => {
   if (!version) {
-    return {
-      major: 1,
-      minor: 0,
-      feature: 0,
-      bugfix: 0,
-    };
+    version = "1.0.0.0";
   }
 
   const versionArray = version.split(".");
@@ -79,17 +75,19 @@ const getUpdatedVersion = ({ previousVersion, bumpType }) => {
 
   switch (bumpType) {
     case "major":
-      decodedVersion.major++;
+      decodedVersion.major = decodedVersion.major + 1;
       break;
     case "minor":
-      decodedVersion.minor++;
+      decodedVersion.minor = decodedVersion.minor + 1;
       break;
-    case "feature":
-      decodedVersion.feature++;
+    case "feat":
+      decodedVersion.feature = decodedVersion.feature + 1;
       break;
     case "bugfix":
-      decodedVersion.bugfix++;
+      decodedVersion.bugfix = decodedVersion.bugfix + 1;
       break;
+    default:
+      throw new Error("Invalid bumpType: " + bumpType);
   }
 
   return decodedVersion;
@@ -120,7 +118,7 @@ const updatePackageJson = async ({ githubRepo, version, bumpType }) => {
   }
 
   previousFileContent.version = `${encodeVersionForPackageJson(version)}`;
-  let fileContent = JSON.stringify(previousFileContent);
+  let fileContent = JSON.stringify(previousFileContent, undefined, 2);
 
   const postData = {
     content: Buffer.from(fileContent, "utf-8").toString("base64"),
